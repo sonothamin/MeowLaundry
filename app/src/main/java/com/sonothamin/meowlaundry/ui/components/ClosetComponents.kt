@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -64,6 +65,7 @@ fun StatusChip(status: ClothingStatus, modifier: Modifier = Modifier) {
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ClothingCard(
     item: ClothingItem,
@@ -139,6 +141,7 @@ fun ClothingCard(
 }
 
 /** Compact row layout for the closet's list view. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ClothingListRow(
     item: ClothingItem,

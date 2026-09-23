@@ -14,12 +14,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class SendToLaundryViewModel(private val repository: ClosetRepository) : ViewModel() {
+class SendToLaundryViewModel(
+    private val repository: ClosetRepository,
+    preselectedIds: Set<Long> = emptySet(),
+) : ViewModel() {
 
     val availableItems: StateFlow<List<ClothingItem>> = repository.observeClothingByStatus(ClothingStatus.IN_CLOSET)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _selected = MutableStateFlow<Set<Long>>(emptySet())
+    private val _selected = MutableStateFlow(preselectedIds)
     val selected: StateFlow<Set<Long>> = _selected.asStateFlow()
 
     private val _serviceType = MutableStateFlow(ServiceType.WASH_AND_PRESS)

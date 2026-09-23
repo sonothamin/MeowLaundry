@@ -1,6 +1,8 @@
 package com.sonothamin.meowlaundry.ui.navigation
 
 sealed class Destination(val route: String) {
+    data object Onboarding : Destination("onboarding")
+
     data object Closet : Destination("closet")
     data object Laundry : Destination("laundry")
     data object History : Destination("history")
@@ -11,7 +13,11 @@ sealed class Destination(val route: String) {
         fun route(itemId: Long) = "item/$itemId"
     }
 
-    data object SendToLaundry : Destination("laundry/send")
+    /** [preselectedIds] lets the closet's multiselect "send to laundry" action pre-fill the picker. */
+    data object SendToLaundry : Destination("laundry/send?preselected={preselected}") {
+        fun route(preselectedIds: List<Long> = emptyList()) =
+            "laundry/send?preselected=${preselectedIds.joinToString(",")}"
+    }
     data object TicketDetail : Destination("laundry/ticket/{ticketId}") {
         fun route(ticketId: Long) = "laundry/ticket/$ticketId"
     }
