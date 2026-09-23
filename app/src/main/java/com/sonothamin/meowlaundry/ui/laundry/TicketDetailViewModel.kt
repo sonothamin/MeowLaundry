@@ -1,23 +1,29 @@
 package com.sonothamin.meowlaundry.ui.laundry
 
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.LaundryTicketItem
-import com.sonothamin.meowlaundry.data.PrintPreferences
 import com.sonothamin.meowlaundry.print.LabelRenderer
-import com.sonothamin.meowlaundry.print.MeowSpoolClient
-import com.sonothamin.meowlaundry.print.MeowSpoolResult
+import com.sonothamin.meowlaundry.print.PrintDispatcher
+import com.sonothamin.meowlaundry.print.PrintOutcome
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** One-shot events the screen must act on (launching a share/print intent, showing a message). */
+sealed class TicketDetailEvent {
+    data class LaunchIntent(val intent: android.content.Intent, val chooserTitle: String) : TicketDetailEvent()
+    data class Message(val text: String) : TicketDetailEvent()
+}
 
 data class TicketDetailUiState(
     val ticket: LaundryTicket? = null,
@@ -26,20 +32,23 @@ data class TicketDetailUiState(
     /** Pending decisions for garments not yet marked returned/lost, keyed by clothing item id. */
     val pendingReturned: Set<Long> = emptySet(),
     val pendingLost: Set<Long> = emptySet(),
-    val printMessage: String? = null,
     val isPrinting: Boolean = false,
+    val previewBitmap: Bitmap? = null,
 )
 
 class TicketDetailViewModel(
     private val repository: ClosetRepository,
-    private val printPreferences: PrintPreferences,
+    private val printDispatcher: PrintDispatcher,
     private val ticketId: Long,
 ) : ViewModel() {
 
     private val pendingReturned = MutableStateFlow<Set<Long>>(emptySet())
     private val pendingLost = MutableStateFlow<Set<Long>>(emptySet())
-    private val printMessage = MutableStateFlow<String?>(null)
     private val isPrinting = MutableStateFlow(false)
+    private val previewBitmap = MutableStateFlow<Bitmap?>(null)
+
+    private val _events = MutableSharedFlow<TicketDetailEvent>()
+    val events: SharedFlow<TicketDetailEvent> = _events
 
     val state: StateFlow<TicketDetailUiState> = combine(
         repository.observeTicket(ticketId),
@@ -49,8 +58,8 @@ class TicketDetailViewModel(
         pendingLost,
     ) { ticket, garments, ticketItems, returned, lost ->
         TicketDetailUiState(ticket, garments, ticketItems, returned, lost)
-    }.combine(printMessage) { s, msg -> s.copy(printMessage = msg) }
-        .combine(isPrinting) { s, printing -> s.copy(isPrinting = printing) }
+    }.combine(isPrinting) { s, printing -> s.copy(isPrinting = printing) }
+        .combine(previewBitmap) { s, preview -> s.copy(previewBitmap = preview) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TicketDetailUiState())
 
     fun togglePendingReturned(clothingItemId: Long) {
@@ -78,33 +87,44 @@ class TicketDetailViewModel(
         viewModelScope.launch { repository.closeTicket(ticketId) }
     }
 
+    /** Renders the label and shows it in a preview dialog, without sending it anywhere. */
+    fun previewTicket() {
+        viewModelScope.launch {
+            val bitmap = renderCurrentLabel() ?: return@launch
+            previewBitmap.value = bitmap
+        }
+    }
+
+    fun dismissPreview() {
+        previewBitmap.value = null
+    }
+
     fun printTicket() {
         viewModelScope.launch {
             isPrinting.value = true
-            val ticket = repository.getTicket(ticketId)
-            val garments = state.value.garments
-            if (ticket == null || garments.isEmpty()) {
-                printMessage.value = "Nothing to print yet"
+            val bitmap = renderCurrentLabel()
+            if (bitmap == null) {
                 isPrinting.value = false
                 return@launch
             }
-            val settings = printPreferences.settings.first()
-            if (settings.host.isBlank()) {
-                printMessage.value = "Set up your MeowSpool printer in Settings first"
-                isPrinting.value = false
-                return@launch
-            }
-            val bitmap = LabelRenderer.renderTicket(ticket, garments)
-            val client = MeowSpoolClient(settings)
-            printMessage.value = when (val result = client.printBitmap(bitmap)) {
-                is MeowSpoolResult.Success -> "Printed (${result.value} rows)"
-                is MeowSpoolResult.Failure -> "Print failed: ${result.message}"
+            when (val outcome = printDispatcher.dispatch(bitmap)) {
+                is PrintOutcome.Printed -> _events.emit(TicketDetailEvent.Message(outcome.message))
+                is PrintOutcome.Failed -> _events.emit(TicketDetailEvent.Message(outcome.message))
+                is PrintOutcome.ShareReady -> _events.emit(
+                    TicketDetailEvent.LaunchIntent(outcome.intent, "Print via MeowSpool"),
+                )
             }
             isPrinting.value = false
         }
     }
 
-    fun dismissPrintMessage() {
-        printMessage.value = null
+    private suspend fun renderCurrentLabel(): Bitmap? {
+        val ticket = repository.getTicket(ticketId)
+        val garments = state.value.garments
+        if (ticket == null || garments.isEmpty()) {
+            _events.emit(TicketDetailEvent.Message("Nothing to print yet"))
+            return null
+        }
+        return LabelRenderer.renderTicket(ticket, garments)
     }
 }
