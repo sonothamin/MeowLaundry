@@ -48,6 +48,14 @@ class ClosetRepository(
         clothingDao.delete(item)
     }
 
+    suspend fun deleteClothingByIds(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        clothingDao.getByIds(ids).forEach { photoStore.delete(it.imagePath) }
+        clothingDao.deleteByIds(ids)
+    }
+
+    suspend fun getClothingByIds(ids: List<Long>): List<ClothingItem> = clothingDao.getByIds(ids)
+
     // --- Laundry tickets --------------------------------------------------
 
     fun observeAllTickets(): Flow<List<LaundryTicket>> = laundryDao.observeAllTickets()
@@ -118,6 +126,19 @@ class ClosetRepository(
     }
 
     suspend fun deleteTicket(ticket: LaundryTicket) = laundryDao.deleteTicket(ticket)
+
+    suspend fun deleteTicketsByIds(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        laundryDao.deleteTicketsByIds(ids)
+    }
+
+    suspend fun getTicketsByIds(ids: List<Long>): List<LaundryTicket> = laundryDao.getTicketsByIds(ids)
+
+    /** Deletes every ticket in history. Garment statuses are untouched. */
+    suspend fun clearAllTickets() {
+        laundryDao.deleteAllTicketItems()
+        laundryDao.deleteAllTickets()
+    }
 
     // --- Backup -------------------------------------------------------
 
