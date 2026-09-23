@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Package visibility so we can detect/target the MeowSpool app for share-intent printing -->
+    <queries>
+        <package android:name="dev.meowspool" />
+    </queries>
+
     <!-- Photos of clothes -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />

@@ -52,6 +52,12 @@ interface ClothingDao {
 
     @Query("UPDATE clothing_items SET status = :status, updatedAt = :now WHERE id IN (:ids)")
     suspend fun setStatusForAll(ids: List<Long>, status: ClothingStatus, now: Long = System.currentTimeMillis())
+
+    @Query("SELECT * FROM clothing_items WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<ClothingItem>
+
+    @Query("DELETE FROM clothing_items WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
 }
 
 @Dao
@@ -83,6 +89,12 @@ interface LaundryDao {
 
     @Query("DELETE FROM laundry_tickets")
     suspend fun deleteAllTickets()
+
+    @Query("DELETE FROM laundry_tickets WHERE id IN (:ids)")
+    suspend fun deleteTicketsByIds(ids: List<Long>)
+
+    @Query("SELECT * FROM laundry_tickets WHERE id IN (:ids)")
+    suspend fun getTicketsByIds(ids: List<Long>): List<LaundryTicket>
 
     @Insert
     suspend fun insertTicketItems(items: List<LaundryTicketItem>): List<Long>

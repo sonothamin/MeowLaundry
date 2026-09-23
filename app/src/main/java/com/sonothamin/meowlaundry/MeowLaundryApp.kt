@@ -2,10 +2,12 @@ package com.sonothamin.meowlaundry
 
 import android.app.Application
 import com.sonothamin.meowlaundry.data.AppDatabase
+import com.sonothamin.meowlaundry.data.AppPreferences
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.data.PrintPreferences
 import com.sonothamin.meowlaundry.data.backup.BackupManager
+import com.sonothamin.meowlaundry.print.PrintDispatcher
 
 /**
  * Hand-rolled DI container. The app is small enough that a dependency-injection
@@ -21,7 +23,11 @@ class MeowLaundryApp : Application() {
         private set
     lateinit var printPreferences: PrintPreferences
         private set
+    lateinit var appPreferences: AppPreferences
+        private set
     lateinit var backupManager: BackupManager
+        private set
+    lateinit var printDispatcher: PrintDispatcher
         private set
 
     override fun onCreate() {
@@ -30,6 +36,8 @@ class MeowLaundryApp : Application() {
         photoStore = PhotoStore(this)
         repository = ClosetRepository(database.clothingDao(), database.laundryDao(), photoStore)
         printPreferences = PrintPreferences(this)
+        appPreferences = AppPreferences(this)
         backupManager = BackupManager(this, repository)
+        printDispatcher = PrintDispatcher(this, printPreferences)
     }
 }

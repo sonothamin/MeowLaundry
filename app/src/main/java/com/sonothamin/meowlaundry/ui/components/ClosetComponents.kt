@@ -1,15 +1,21 @@
 package com.sonothamin.meowlaundry.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -21,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +65,7 @@ fun StatusChip(status: ClothingStatus, modifier: Modifier = Modifier) {
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ClothingCard(
     item: ClothingItem,
@@ -65,10 +73,15 @@ fun ClothingCard(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     onSelectToggle: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Card(
-        onClick = { onSelectToggle?.invoke() ?: onClick() },
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onLongClick = onLongClick,
+                onClick = { onSelectToggle?.invoke() ?: onClick() },
+            ),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
@@ -98,6 +111,17 @@ fun ClothingCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (selected) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Selected",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(Spacing.xs)
+                            .background(MaterialTheme.colorScheme.surface, CircleShape),
+                    )
+                }
             }
             Column(modifier = Modifier.padding(Spacing.sm)) {
                 Text(
@@ -110,6 +134,77 @@ fun ClothingCard(
                     text = item.type.name.lowercase().replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Compact row layout for the closet's list view. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ClothingListRow(
+    item: ClothingItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    onSelectToggle: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onLongClick = onLongClick,
+                onClick = { onSelectToggle?.invoke() ?: onClick() },
+            ),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
+            else MaterialTheme.colorScheme.surfaceContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (item.imagePath != null) {
+                    AsyncImage(
+                        model = item.imagePath,
+                        contentDescription = item.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Checkroom,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = item.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            StatusChip(status = item.status)
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
                 )
             }
         }
