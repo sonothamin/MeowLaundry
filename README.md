@@ -14,7 +14,10 @@ no cloud, no network access except (optionally) to a MeowSpool print server on y
 
 ## Status
 
-This project is under active development. See the checklist below for what's implemented.
+Core functionality is implemented end to end: closet management, sending clothes to the
+laundry, receiving them back (or marking them lost), history, printing, and backup. See
+the checklist below. Not yet done: automated tests, and Room database migrations (schema
+is currently version 1, so this only matters once the schema needs to change).
 
 ## Features
 
@@ -23,14 +26,14 @@ This project is under active development. See the checklist below for what's imp
 | Add/edit/remove clothing items (title, type, photo, price) | ✅ |
 | View closet at a glance (grid, filter by status) | ✅ |
 | Track item status: in closet / at laundry / lost | ✅ |
-| Send items to laundry (create a ticket, choose wash/press) | ⬜ |
-| Receive items back (mark returned vs. lost per item) | ⬜ |
-| Laundry ticket history | ⬜ |
-| "Lost by laundry" tally with replacement value | ✅ (data layer; UI pending) |
-| Print laundry ticket/label via MeowSpool API | ⬜ |
-| Print server connection settings (host, port, token) | ⬜ |
-| Export all data (items + tickets + photos) to a file | ✅ (data layer; UI pending) |
-| Import data back from an export file | ✅ (data layer; UI pending) |
+| Send items to laundry (create a ticket, choose wash/press) | ✅ |
+| Receive items back (mark returned vs. lost per item) | ✅ |
+| Laundry ticket history | ✅ |
+| "Lost by laundry" tally with replacement value | ✅ |
+| Print laundry ticket/label via MeowSpool API | ✅ |
+| Print server connection settings (host, port, token) | ✅ |
+| Export all data (items + tickets + photos) to a file | ✅ |
+| Import data back from an export file | ✅ |
 | Material 3 Expressive theming (dynamic color, expressive shapes) | ✅ |
 | 100% offline / on-device (SQLite via Room) | ✅ |
 

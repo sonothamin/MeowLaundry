@@ -7,12 +7,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckroomOutlined
+import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,7 +28,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClothingStatus
@@ -71,7 +71,7 @@ fun ClosetScreen(
 
             if (items.isEmpty()) {
                 EmptyState(
-                    icon = Icons.Default.CheckroomOutlined,
+                    icon = Icons.Default.Checkroom,
                     title = "Nothing here yet",
                     subtitle = "Tap + to add the first garment to your closet.",
                 )
@@ -98,12 +98,12 @@ private fun SummaryRow(inCloset: Int, atLaundry: Int, lost: Int, lostValue: Doub
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        SummaryCard(label = "In closet", value = inCloset.toString(), modifier = Modifier)
-        SummaryCard(label = "At laundry", value = atLaundry.toString(), modifier = Modifier)
+        SummaryCard(label = "In closet", value = inCloset.toString(), modifier = Modifier.weight(1f))
+        SummaryCard(label = "At laundry", value = atLaundry.toString(), modifier = Modifier.weight(1f))
         SummaryCard(
             label = "Lost",
             value = if (lostValue > 0) "$lost · \$${"%.0f".format(lostValue)}" else lost.toString(),
-            modifier = Modifier,
+            modifier = Modifier.weight(1f),
         )
     }
 }
