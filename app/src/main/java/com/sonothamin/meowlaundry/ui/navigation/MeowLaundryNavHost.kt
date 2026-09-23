@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalLaundryService
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -29,6 +30,8 @@ import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.sonothamin.meowlaundry.MeowLaundryApp
 import com.sonothamin.meowlaundry.ui.LambdaViewModelFactory
+import com.sonothamin.meowlaundry.ui.archive.ArchiveScreen
+import com.sonothamin.meowlaundry.ui.archive.ArchiveViewModel
 import com.sonothamin.meowlaundry.ui.articleview.ArticleViewModel
 import com.sonothamin.meowlaundry.ui.articleview.ArticleViewScreen
 import com.sonothamin.meowlaundry.ui.closet.ClosetScreen
@@ -54,6 +57,7 @@ private val tabs = listOf(
     TopLevelTab(Destination.Closet, "Closet", Icons.Default.Checkroom),
     TopLevelTab(Destination.Laundry, "Laundry", Icons.Default.LocalLaundryService),
     TopLevelTab(Destination.History, "History", Icons.Default.History),
+    TopLevelTab(Destination.Archive, "Archive", Icons.Default.Inventory2),
     TopLevelTab(Destination.Settings, "Settings", Icons.Default.Settings),
 )
 
@@ -190,9 +194,18 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                 HistoryScreen(viewModel = vm, onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) })
             }
 
+            composable(Destination.Archive.route) {
+                val vm: ArchiveViewModel = viewModel(
+                    factory = LambdaViewModelFactory { ArchiveViewModel(app.repository) },
+                )
+                ArchiveScreen(viewModel = vm, onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) })
+            }
+
             composable(Destination.Settings.route) {
                 val vm: SettingsViewModel = viewModel(
-                    factory = LambdaViewModelFactory { SettingsViewModel(app.printPreferences, app.backupManager) },
+                    factory = LambdaViewModelFactory {
+                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences)
+                    },
                 )
                 SettingsScreen(viewModel = vm)
             }

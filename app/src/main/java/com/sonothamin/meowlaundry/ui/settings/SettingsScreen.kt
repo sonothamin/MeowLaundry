@@ -19,6 +19,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -32,7 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
+import com.sonothamin.meowlaundry.data.ThemeMode
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -42,6 +47,7 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val printSettings by viewModel.printSettings.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -65,6 +71,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     var token by remember(printSettings.token) { mutableStateOf(printSettings.token) }
     var darkness by remember(printSettings.darkness) { mutableStateOf(printSettings.darkness.toString()) }
     var useToken by remember(printSettings.token) { mutableStateOf(printSettings.token.isNotBlank()) }
+    var printMethod by remember(printSettings.printMethod) { mutableStateOf(printSettings.printMethod) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Settings") }) },
@@ -85,12 +92,38 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            Text("Default print method", style = MaterialTheme.typography.labelLarge)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = printMethod == PrintMethod.NETWORK,
+                    onClick = { printMethod = PrintMethod.NETWORK },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    label = { Text("IP") },
+                )
+                SegmentedButton(
+                    selected = printMethod == PrintMethod.SHARE_INTENT,
+                    onClick = { printMethod = PrintMethod.SHARE_INTENT },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    label = { Text("App intent") },
+                )
+            }
+            Text(
+                if (printMethod == PrintMethod.NETWORK) {
+                    "Talks to the MeowSpool HTTP API directly at the host/port below."
+                } else {
+                    "Hands the label to the MeowSpool app via a share intent - no host/port needed."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             OutlinedTextField(
                 value = host,
                 onValueChange = { host = it },
                 label = { Text("Host / IP address") },
                 placeholder = { Text("192.168.1.20") },
                 singleLine = true,
+                enabled = printMethod == PrintMethod.NETWORK,
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
@@ -132,6 +165,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                                 token = if (useToken) token.trim() else "",
                                 darkness = darkness.toIntOrNull() ?: 70,
                                 dither = "sharp",
+                                printMethod = printMethod,
                             )
                         )
                     },
@@ -142,6 +176,28 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             }
             uiState.connectionStatus?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall)
+            }
+
+            HorizontalDivider()
+
+            Text("Theme", style = MaterialTheme.typography.titleMedium)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                ThemeMode.values().forEachIndexed { index, mode ->
+                    SegmentedButton(
+                        selected = themeMode == mode,
+                        onClick = { viewModel.setThemeMode(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = ThemeMode.values().size),
+                        label = {
+                            Text(
+                                when (mode) {
+                                    ThemeMode.SYSTEM -> "System"
+                                    ThemeMode.LIGHT -> "Light"
+                                    ThemeMode.DARK -> "Dark"
+                                }
+                            )
+                        },
+                    )
+                }
             }
 
             HorizontalDivider()

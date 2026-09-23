@@ -2,8 +2,10 @@ package com.sonothamin.meowlaundry.ui.articleview
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
+import com.sonothamin.meowlaundry.data.ClothingItemPhoto
 import com.sonothamin.meowlaundry.data.LaundryTicketItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,6 +17,7 @@ import kotlinx.coroutines.launch
 data class ArticleViewUiState(
     val item: ClothingItem? = null,
     val history: List<LaundryTicketItem> = emptyList(),
+    val photos: List<ClothingItemPhoto> = emptyList(),
     val deleted: Boolean = false,
 )
 
@@ -28,9 +31,10 @@ class ArticleViewModel(
     val state: StateFlow<ArticleViewUiState> = combine(
         repository.observeClothingById(itemId),
         repository.observeHistoryForItem(itemId),
+        repository.observePhotosForItem(itemId),
         deleted,
-    ) { item, history, isDeleted ->
-        ArticleViewUiState(item, history, isDeleted)
+    ) { item, history, photos, isDeleted ->
+        ArticleViewUiState(item, history, photos, isDeleted)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ArticleViewUiState())
 
     fun delete() {
@@ -39,5 +43,13 @@ class ArticleViewModel(
             repository.deleteClothing(item)
             deleted.value = true
         }
+    }
+
+    fun archive(reason: ArchiveReason, notes: String?) {
+        viewModelScope.launch { repository.archiveItem(itemId, reason, notes) }
+    }
+
+    fun unarchive() {
+        viewModelScope.launch { repository.unarchiveItem(itemId) }
     }
 }

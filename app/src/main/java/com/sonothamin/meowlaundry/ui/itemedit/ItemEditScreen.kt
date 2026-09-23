@@ -5,25 +5,35 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,12 +65,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.sonothamin.meowlaundry.data.ClothingItemPhoto
 import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -156,7 +169,9 @@ fun ItemEditScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             PhotoPicker(
-                imagePath = state.imagePath,
+                primaryImagePath = state.primaryImagePath,
+                photos = state.photos,
+                isNew = state.isNew,
                 onTakePhoto = {
                     val hasPermission = ContextCompat.checkSelfPermission(
                         context,
@@ -169,7 +184,9 @@ fun ItemEditScreen(
                     }
                 },
                 onPickFromGallery = { galleryLauncher.launch("image/*") },
-                onRemovePhoto = viewModel::removePhoto,
+                onRemoveStagedPhoto = viewModel::removeStagedPhoto,
+                onRemoveGalleryPhoto = viewModel::removeGalleryPhoto,
+                onSetPrimary = viewModel::setPrimaryPhoto,
             )
 
             OutlinedTextField(
@@ -222,10 +239,14 @@ fun ItemEditScreen(
 
 @Composable
 private fun PhotoPicker(
-    imagePath: String?,
+    primaryImagePath: String?,
+    photos: List<ClothingItemPhoto>,
+    isNew: Boolean,
     onTakePhoto: () -> Unit,
     onPickFromGallery: () -> Unit,
-    onRemovePhoto: () -> Unit,
+    onRemoveStagedPhoto: () -> Unit,
+    onRemoveGalleryPhoto: (ClothingItemPhoto) -> Unit,
+    onSetPrimary: (ClothingItemPhoto) -> Unit,
 ) {
     Card(
         shape = MaterialTheme.shapes.large,
@@ -238,9 +259,9 @@ private fun PhotoPicker(
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(0.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            if (imagePath != null) {
+            if (primaryImagePath != null) {
                 AsyncImage(
-                    model = imagePath,
+                    model = primaryImagePath,
                     contentDescription = "Garment photo",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
@@ -254,8 +275,27 @@ private fun PhotoPicker(
                 )
             }
         }
+
+        // Once an article has more than one photo, this thumbnail strip lets you pick which
+        // one is primary (shown in the closet grid, printed on labels, etc.) or remove any of them.
+        if (photos.size > 1) {
+            LazyRow(
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                items(photos, key = { it.id }) { photo ->
+                    PhotoThumbnail(
+                        photo = photo,
+                        onClick = { onSetPrimary(photo) },
+                        onRemove = { onRemoveGalleryPhoto(photo) },
+                    )
+                }
+            }
+        }
+
         Column(modifier = Modifier.padding(Spacing.sm)) {
-            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 OutlinedButton(onClick = onTakePhoto) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null)
                     Text(" Camera", modifier = Modifier.padding(start = Spacing.xs))
@@ -264,13 +304,72 @@ private fun PhotoPicker(
                     Icon(Icons.Default.PhotoLibrary, contentDescription = null)
                     Text(" Gallery", modifier = Modifier.padding(start = Spacing.xs))
                 }
-                if (imagePath != null) {
-                    IconButton(onClick = onRemovePhoto) {
+                // A brand-new article only has one staged photo (added to the real gallery on
+                // first save), so it gets a plain remove button instead of the thumbnail strip.
+                if (isNew && primaryImagePath != null) {
+                    IconButton(onClick = onRemoveStagedPhoto) {
                         Icon(Icons.Default.Delete, contentDescription = "Remove photo")
                     }
                 }
             }
+            if (!isNew) {
+                Text(
+                    "Add as many photos as you like. Tap a thumbnail to make it the primary photo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun PhotoThumbnail(
+    photo: ClothingItemPhoto,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Box(modifier = Modifier.size(72.dp)) {
+        AsyncImage(
+            model = photo.path,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(MaterialTheme.shapes.small)
+                .border(
+                    width = if (photo.isPrimary) 2.dp else 0.dp,
+                    color = if (photo.isPrimary) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    shape = MaterialTheme.shapes.small,
+                )
+                .clickable(onClick = onClick),
+        )
+        if (photo.isPrimary) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = "Primary photo",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(2.dp)
+                    .size(16.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape)
+                    .padding(1.dp),
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "Remove photo",
+            tint = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(2.dp)
+                .size(16.dp)
+                .background(MaterialTheme.colorScheme.errorContainer, CircleShape)
+                .clickable(onClick = onRemove)
+                .padding(1.dp),
+        )
     }
 }
 

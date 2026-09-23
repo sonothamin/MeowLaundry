@@ -13,7 +13,12 @@ enum class ClothingType {
 
 /** Where a single garment currently is. */
 enum class ClothingStatus {
-    IN_CLOSET, AT_LAUNDRY, LOST
+    IN_CLOSET, AT_LAUNDRY, LOST, ARCHIVED
+}
+
+/** Why a garment was archived (taken out of active closet rotation for good). */
+enum class ArchiveReason {
+    DONATED, SOLD, DISCARDED, GIVEN_AWAY, LOST, OTHER
 }
 
 /** What the laundromat/laundry service is asked to do with a batch of clothes. */
@@ -43,6 +48,36 @@ data class ClothingItem(
     val notes: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Set together with [status] = ARCHIVED. Null otherwise. */
+    val archiveReason: ArchiveReason? = null,
+    val archivedAt: Long? = null,
+    val archiveNotes: String? = null,
+)
+
+/**
+ * One of possibly several photos of a garment. [isPrimary] marks the one shown in the
+ * closet grid/list and used as [ClothingItem.imagePath] (kept in sync as a denormalized
+ * cache so existing single-photo call sites don't need to change).
+ */
+@Entity(
+    tableName = "clothing_item_photos",
+    foreignKeys = [
+        ForeignKey(
+            entity = ClothingItem::class,
+            parentColumns = ["id"],
+            childColumns = ["clothingItemId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("clothingItemId")],
+)
+data class ClothingItemPhoto(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val clothingItemId: Long,
+    val path: String,
+    val isPrimary: Boolean = false,
+    val sortOrder: Int = 0,
+    val createdAt: Long = System.currentTimeMillis(),
 )
 
 /** A batch of clothes sent to a laundry/press service together. */
@@ -117,6 +152,17 @@ data class BackupClothingItem(
     val notes: String?,
     val createdAt: Long,
     val updatedAt: Long,
+    val archiveReason: String? = null,
+    val archivedAt: Long? = null,
+    val archiveNotes: String? = null,
+    val photos: List<BackupPhoto> = emptyList(),
+)
+
+@Serializable
+data class BackupPhoto(
+    val path: String,
+    val isPrimary: Boolean,
+    val sortOrder: Int,
 )
 
 @Serializable

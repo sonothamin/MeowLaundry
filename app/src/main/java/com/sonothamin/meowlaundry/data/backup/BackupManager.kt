@@ -31,8 +31,10 @@ class BackupManager(
                 zip.write(jsonBytes)
                 zip.closeEntry()
 
-                payload.clothingItems.forEach { item ->
-                    val path = item.imagePath ?: return@forEach
+                val allPaths = payload.clothingItems.flatMap { item ->
+                    (item.photos.map { it.path } + listOfNotNull(item.imagePath)).distinct()
+                }.distinct()
+                allPaths.forEach { path ->
                     val file = File(path)
                     if (file.exists()) {
                         zip.putNextEntry(ZipEntry("photos/${file.name}"))
@@ -73,14 +75,20 @@ class BackupManager(
 
         val loaded = payload ?: error("backup.json missing from archive")
 
-        // Re-point every imagePath at the freshly restored file in this install's files dir.
+        // Re-point every path at the freshly restored file in this install's files dir.
+        fun remapPath(original: String?): String? {
+            if (original.isNullOrBlank()) return null
+            val restored = File(photosDir, File(original).name)
+            return if (restored.exists()) restored.absolutePath else null
+        }
         val remapped = loaded.copy(
             clothingItems = loaded.clothingItems.map { item ->
-                val original = item.imagePath
-                if (original.isNullOrBlank()) return@map item
-                val fileName = File(original).name
-                val restored = File(photosDir, fileName)
-                item.copy(imagePath = if (restored.exists()) restored.absolutePath else null)
+                item.copy(
+                    imagePath = remapPath(item.imagePath),
+                    photos = item.photos.mapNotNull { photo ->
+                        remapPath(photo.path)?.let { photo.copy(path = it) }
+                    },
+                )
             }
         )
 

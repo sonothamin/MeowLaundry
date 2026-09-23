@@ -12,6 +12,7 @@ class ClosetRepository(
     private val clothingDao: ClothingDao,
     private val laundryDao: LaundryDao,
     private val photoStore: PhotoStore,
+    private val photoDao: ClothingPhotoDao,
 ) {
     // --- Closet ---------------------------------------------------------
 
@@ -44,17 +45,74 @@ class ClosetRepository(
     suspend fun saveClothing(item: ClothingItem): Long = clothingDao.upsert(item)
 
     suspend fun deleteClothing(item: ClothingItem) {
+        photoDao.getForItem(item.id).forEach { photoStore.delete(it.path) }
         photoStore.delete(item.imagePath)
-        clothingDao.delete(item)
+        clothingDao.delete(item) // cascades to clothing_item_photos rows
     }
 
     suspend fun deleteClothingByIds(ids: List<Long>) {
         if (ids.isEmpty()) return
+        photoDao.getForItems(ids).forEach { photoStore.delete(it.path) }
         clothingDao.getByIds(ids).forEach { photoStore.delete(it.imagePath) }
-        clothingDao.deleteByIds(ids)
+        clothingDao.deleteByIds(ids) // cascades to clothing_item_photos rows
     }
 
     suspend fun getClothingByIds(ids: List<Long>): List<ClothingItem> = clothingDao.getByIds(ids)
+
+    // --- Photos -----------------------------------------------------------
+
+    fun observePhotosForItem(itemId: Long): Flow<List<ClothingItemPhoto>> = photoDao.observeForItem(itemId)
+
+    /** Adds a new photo. The very first photo added for an item becomes primary automatically. */
+    suspend fun addPhoto(itemId: Long, path: String): Long {
+        val existing = photoDao.getForItem(itemId)
+        val makePrimary = existing.isEmpty()
+        val id = photoDao.insert(
+            ClothingItemPhoto(
+                clothingItemId = itemId,
+                path = path,
+                isPrimary = makePrimary,
+                sortOrder = existing.size,
+            )
+        )
+        if (makePrimary) clothingDao.setImagePath(itemId, path)
+        return id
+    }
+
+    /** Removes a photo. If it was primary, the next remaining photo (if any) becomes primary. */
+    suspend fun removePhoto(photo: ClothingItemPhoto) {
+        photoStore.delete(photo.path)
+        photoDao.deleteById(photo.id)
+        if (photo.isPrimary) {
+            val remaining = photoDao.getForItem(photo.clothingItemId)
+            val newPrimary = remaining.firstOrNull()
+            if (newPrimary != null) {
+                photoDao.markPrimary(newPrimary.id)
+                clothingDao.setImagePath(photo.clothingItemId, newPrimary.path)
+            } else {
+                clothingDao.setImagePath(photo.clothingItemId, null)
+            }
+        }
+    }
+
+    suspend fun setPrimaryPhoto(itemId: Long, photoId: Long) {
+        val photo = photoDao.getForItem(itemId).firstOrNull { it.id == photoId } ?: return
+        photoDao.clearPrimary(itemId)
+        photoDao.markPrimary(photoId)
+        clothingDao.setImagePath(itemId, photo.path)
+    }
+
+    // --- Archive ------------------------------------------------------------
+
+    fun observeArchived(): Flow<List<ClothingItem>> = clothingDao.observeArchived()
+
+    fun observeArchivedByReason(reason: ArchiveReason): Flow<List<ClothingItem>> =
+        clothingDao.observeArchivedByReason(reason)
+
+    suspend fun archiveItem(id: Long, reason: ArchiveReason, notes: String?) =
+        clothingDao.archive(id, reason, notes?.trim()?.ifBlank { null })
+
+    suspend fun unarchiveItem(id: Long) = clothingDao.unarchive(id)
 
     // --- Laundry tickets --------------------------------------------------
 
@@ -146,6 +204,7 @@ class ClosetRepository(
         val allClothing = allClothingSnapshot()
         val allTickets = allTicketsSnapshot()
         val allTicketItems = laundryDao.getAllTicketItems()
+        val photosByItem = photoDao.getForItems(allClothing.map { it.id }).groupBy { it.clothingItemId }
         return BackupPayload(
             clothingItems = allClothing.map {
                 BackupClothingItem(
@@ -158,6 +217,12 @@ class ClosetRepository(
                     notes = it.notes,
                     createdAt = it.createdAt,
                     updatedAt = it.updatedAt,
+                    archiveReason = it.archiveReason?.name,
+                    archivedAt = it.archivedAt,
+                    archiveNotes = it.archiveNotes,
+                    photos = photosByItem[it.id].orEmpty().map { photo ->
+                        BackupPhoto(path = photo.path, isPrimary = photo.isPrimary, sortOrder = photo.sortOrder)
+                    },
                 )
             },
             tickets = allTickets.map {
@@ -187,7 +252,7 @@ class ClosetRepository(
 
     /** Replaces everything currently in the database with the contents of [payload]. */
     suspend fun importAll(payload: BackupPayload) {
-        clothingDao.deleteAll()
+        clothingDao.deleteAll() // cascades to clothing_item_photos rows
         laundryDao.deleteAllTicketItems()
         laundryDao.deleteAllTickets()
 
@@ -203,9 +268,26 @@ class ClosetRepository(
                     notes = it.notes,
                     createdAt = it.createdAt,
                     updatedAt = it.updatedAt,
+                    archiveReason = it.archiveReason?.let { r -> runCatching { ArchiveReason.valueOf(r) }.getOrNull() },
+                    archivedAt = it.archivedAt,
+                    archiveNotes = it.archiveNotes,
                 )
             }
         )
+        payload.clothingItems.forEach { item ->
+            if (item.photos.isNotEmpty()) {
+                photoDao.insertAll(
+                    item.photos.map { p ->
+                        ClothingItemPhoto(
+                            clothingItemId = item.id,
+                            path = p.path,
+                            isPrimary = p.isPrimary,
+                            sortOrder = p.sortOrder,
+                        )
+                    }
+                )
+            }
+        }
         laundryDao.upsertTickets(
             payload.tickets.map {
                 LaundryTicket(

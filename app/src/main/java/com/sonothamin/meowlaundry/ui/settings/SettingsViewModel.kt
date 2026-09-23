@@ -3,8 +3,10 @@ package com.sonothamin.meowlaundry.ui.settings
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sonothamin.meowlaundry.data.AppPreferences
 import com.sonothamin.meowlaundry.data.PrintPreferences
 import com.sonothamin.meowlaundry.data.PrintServerSettings
+import com.sonothamin.meowlaundry.data.ThemeMode
 import com.sonothamin.meowlaundry.data.backup.BackupManager
 import com.sonothamin.meowlaundry.print.MeowSpoolClient
 import com.sonothamin.meowlaundry.print.MeowSpoolResult
@@ -25,16 +27,24 @@ data class SettingsUiState(
 class SettingsViewModel(
     private val printPreferences: PrintPreferences,
     private val backupManager: BackupManager,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
 
     val printSettings: StateFlow<PrintServerSettings> = printPreferences.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PrintServerSettings())
+
+    val themeMode: StateFlow<ThemeMode> = appPreferences.themeMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.SYSTEM)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState
 
     fun updateSettings(settings: PrintServerSettings) {
         viewModelScope.launch { printPreferences.update(settings) }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { appPreferences.setThemeMode(mode) }
     }
 
     fun testConnection() {

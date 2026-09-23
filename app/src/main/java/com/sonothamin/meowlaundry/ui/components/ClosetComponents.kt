@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -42,6 +43,7 @@ fun statusColor(status: ClothingStatus): Color = when (status) {
     ClothingStatus.IN_CLOSET -> MaterialTheme.colorScheme.tertiaryContainer
     ClothingStatus.AT_LAUNDRY -> MaterialTheme.colorScheme.primaryContainer
     ClothingStatus.LOST -> MaterialTheme.colorScheme.errorContainer
+    ClothingStatus.ARCHIVED -> MaterialTheme.colorScheme.surfaceVariant
 }
 
 @Composable
@@ -49,6 +51,16 @@ fun statusLabel(status: ClothingStatus): String = when (status) {
     ClothingStatus.IN_CLOSET -> "In closet"
     ClothingStatus.AT_LAUNDRY -> "At laundry"
     ClothingStatus.LOST -> "Lost"
+    ClothingStatus.ARCHIVED -> "Archived"
+}
+
+fun archiveReasonLabel(reason: ArchiveReason): String = when (reason) {
+    ArchiveReason.DONATED -> "Donated"
+    ArchiveReason.SOLD -> "Sold"
+    ArchiveReason.DISCARDED -> "Discarded"
+    ArchiveReason.GIVEN_AWAY -> "Given away"
+    ArchiveReason.LOST -> "Lost"
+    ArchiveReason.OTHER -> "Other"
 }
 
 @Composable

@@ -304,5 +304,10 @@ private fun FilterRow(selected: ClothingStatus?, onSelect: (ClothingStatus?) -> 
             onClick = { onSelect(ClothingStatus.LOST) },
             label = { Text("Lost") },
         )
+        FilterChip(
+            selected = selected == ClothingStatus.ARCHIVED,
+            onClick = { onSelect(ClothingStatus.ARCHIVED) },
+            label = { Text("Archived") },
+        )
     }
 }

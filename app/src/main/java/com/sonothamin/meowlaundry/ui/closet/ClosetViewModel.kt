@@ -42,7 +42,12 @@ class ClosetViewModel(
 
     private val allItemsForFilter: StateFlow<List<ClothingItem>> = _filter
         .flatMapLatest { status ->
-            if (status == null) repository.observeAllClothing() else repository.observeClothingByStatus(status)
+            when (status) {
+                // "All" means all active garments - archived ones have their own filter chip
+                // and live in the Archive screen so they don't clutter the everyday view.
+                null -> repository.observeAllClothing().map { list -> list.filter { it.status != ClothingStatus.ARCHIVED } }
+                else -> repository.observeClothingByStatus(status)
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

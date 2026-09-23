@@ -26,4 +26,11 @@ class Converters {
 
     @TypeConverter
     fun toTicketStatus(value: String): TicketStatus = TicketStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromArchiveReason(value: ArchiveReason?): String? = value?.name
+
+    @TypeConverter
+    fun toArchiveReason(value: String?): ArchiveReason? =
+        value?.let { runCatching { ArchiveReason.valueOf(it) }.getOrNull() }
 }

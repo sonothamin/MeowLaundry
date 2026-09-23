@@ -34,7 +34,7 @@ class MeowLaundryApp : Application() {
         super.onCreate()
         database = AppDatabase.getInstance(this)
         photoStore = PhotoStore(this)
-        repository = ClosetRepository(database.clothingDao(), database.laundryDao(), photoStore)
+        repository = ClosetRepository(database.clothingDao(), database.laundryDao(), photoStore, database.photoDao())
         printPreferences = PrintPreferences(this)
         appPreferences = AppPreferences(this)
         backupManager = BackupManager(this, repository)

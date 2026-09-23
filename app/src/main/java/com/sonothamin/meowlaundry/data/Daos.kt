@@ -58,6 +58,66 @@ interface ClothingDao {
 
     @Query("DELETE FROM clothing_items WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
+
+    @Query("SELECT * FROM clothing_items WHERE status = 'ARCHIVED' ORDER BY archivedAt DESC")
+    fun observeArchived(): Flow<List<ClothingItem>>
+
+    @Query("SELECT * FROM clothing_items WHERE status = 'ARCHIVED' AND archiveReason = :reason ORDER BY archivedAt DESC")
+    fun observeArchivedByReason(reason: ArchiveReason): Flow<List<ClothingItem>>
+
+    @Query(
+        """
+        UPDATE clothing_items
+        SET status = 'ARCHIVED', archiveReason = :reason, archivedAt = :now, archiveNotes = :notes, updatedAt = :now
+        WHERE id = :id
+        """
+    )
+    suspend fun archive(id: Long, reason: ArchiveReason, notes: String?, now: Long = System.currentTimeMillis())
+
+    @Query(
+        """
+        UPDATE clothing_items
+        SET status = 'IN_CLOSET', archiveReason = NULL, archivedAt = NULL, archiveNotes = NULL, updatedAt = :now
+        WHERE id = :id
+        """
+    )
+    suspend fun unarchive(id: Long, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE clothing_items SET imagePath = :path WHERE id = :id")
+    suspend fun setImagePath(id: Long, path: String?)
+}
+
+@Dao
+interface ClothingPhotoDao {
+    @Query("SELECT * FROM clothing_item_photos WHERE clothingItemId = :itemId ORDER BY sortOrder ASC, id ASC")
+    fun observeForItem(itemId: Long): Flow<List<ClothingItemPhoto>>
+
+    @Query("SELECT * FROM clothing_item_photos WHERE clothingItemId = :itemId ORDER BY sortOrder ASC, id ASC")
+    suspend fun getForItem(itemId: Long): List<ClothingItemPhoto>
+
+    @Query("SELECT * FROM clothing_item_photos WHERE clothingItemId IN (:itemIds)")
+    suspend fun getForItems(itemIds: List<Long>): List<ClothingItemPhoto>
+
+    @Insert
+    suspend fun insert(photo: ClothingItemPhoto): Long
+
+    @Insert
+    suspend fun insertAll(photos: List<ClothingItemPhoto>)
+
+    @Update
+    suspend fun update(photo: ClothingItemPhoto)
+
+    @Query("DELETE FROM clothing_item_photos WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM clothing_item_photos WHERE clothingItemId = :itemId")
+    suspend fun deleteAllForItem(itemId: Long)
+
+    @Query("UPDATE clothing_item_photos SET isPrimary = 0 WHERE clothingItemId = :itemId")
+    suspend fun clearPrimary(itemId: Long)
+
+    @Query("UPDATE clothing_item_photos SET isPrimary = 1 WHERE id = :photoId")
+    suspend fun markPrimary(photoId: Long)
 }
 
 @Dao
