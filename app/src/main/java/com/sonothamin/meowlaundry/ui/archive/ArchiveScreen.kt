@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as lazyRowItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -96,7 +97,7 @@ private fun ReasonFilterRow(selected: ArchiveReason?, onSelect: (ArchiveReason?)
         item {
             FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("All") })
         }
-        items(ArchiveReason.values().toList()) { reason ->
+        lazyRowItems(ArchiveReason.values().toList()) { reason ->
             FilterChip(
                 selected = selected == reason,
                 onClick = { onSelect(reason) },
