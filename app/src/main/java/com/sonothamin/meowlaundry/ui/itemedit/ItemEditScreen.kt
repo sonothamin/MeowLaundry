@@ -1,5 +1,7 @@
 package com.sonothamin.meowlaundry.ui.itemedit
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -34,6 +36,8 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -41,16 +45,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.ui.theme.Spacing
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +68,9 @@ fun ItemEditScreen(
     onDone: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.saved) {
         if (state.saved) onDone()
@@ -72,6 +83,25 @@ fun ItemEditScreen(
         val path = pendingCapturePath
         if (success && path != null) viewModel.onPhotoCaptured(path)
     }
+
+    // Camera is a dangerous permission on API 23+: launching TakePicture() without it
+    // granted throws a SecurityException and crashes the activity, which is what was
+    // happening before. Request it first and only open the camera once it's granted.
+    fun launchCamera() {
+        val (file, uri) = photoStore.createCaptureTarget()
+        pendingCapturePath = file.absolutePath
+        cameraLauncher.launch(uri)
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            launchCamera()
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Camera permission is needed to take a photo") }
+        }
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
     ) { uri -> uri?.let(viewModel::onPhotoPicked) }
@@ -87,6 +117,7 @@ fun ItemEditScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -99,9 +130,15 @@ fun ItemEditScreen(
             PhotoPicker(
                 imagePath = state.imagePath,
                 onTakePhoto = {
-                    val (file, uri) = photoStore.createCaptureTarget()
-                    pendingCapturePath = file.absolutePath
-                    cameraLauncher.launch(uri)
+                    val hasPermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA,
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasPermission) {
+                        launchCamera()
+                    } else {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
                 },
                 onPickFromGallery = { galleryLauncher.launch("image/*") },
                 onRemovePhoto = viewModel::removePhoto,

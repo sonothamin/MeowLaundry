@@ -10,6 +10,14 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "print_settings")
 
+/**
+ * How a print job actually leaves the app:
+ *  - NETWORK: talk to the MeowSpool HTTP API directly (see MeowSpoolClient).
+ *  - SHARE_INTENT: hand the rendered label to the MeowSpool app itself via a share
+ *    (ACTION_SEND) intent, exactly like sharing a photo to it from the gallery.
+ */
+enum class PrintMethod { NETWORK, SHARE_INTENT }
+
 /** Everything needed to reach a MeowSpool print server, plus a couple of label defaults. */
 data class PrintServerSettings(
     val host: String = "",
@@ -17,6 +25,7 @@ data class PrintServerSettings(
     val token: String = "",
     val darkness: Int = 70,
     val dither: String = "sharp",
+    val printMethod: PrintMethod = PrintMethod.SHARE_INTENT,
 )
 
 class PrintPreferences(private val context: Context) {
@@ -27,6 +36,7 @@ class PrintPreferences(private val context: Context) {
         val TOKEN = stringPreferencesKey("token")
         val DARKNESS = intPreferencesKey("darkness")
         val DITHER = stringPreferencesKey("dither")
+        val PRINT_METHOD = stringPreferencesKey("print_method")
     }
 
     val settings: Flow<PrintServerSettings> = context.dataStore.data.map { prefs ->
@@ -36,6 +46,9 @@ class PrintPreferences(private val context: Context) {
             token = prefs[Keys.TOKEN] ?: "",
             darkness = prefs[Keys.DARKNESS] ?: 70,
             dither = prefs[Keys.DITHER] ?: "sharp",
+            printMethod = prefs[Keys.PRINT_METHOD]
+                ?.let { runCatching { PrintMethod.valueOf(it) }.getOrNull() }
+                ?: PrintMethod.SHARE_INTENT,
         )
     }
 
@@ -46,6 +59,7 @@ class PrintPreferences(private val context: Context) {
             prefs[Keys.TOKEN] = settings.token
             prefs[Keys.DARKNESS] = settings.darkness
             prefs[Keys.DITHER] = settings.dither
+            prefs[Keys.PRINT_METHOD] = settings.printMethod.name
         }
     }
 }
