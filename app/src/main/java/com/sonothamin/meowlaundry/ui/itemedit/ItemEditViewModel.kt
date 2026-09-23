@@ -23,6 +23,7 @@ data class ItemEditUiState(
     val status: ClothingStatus = ClothingStatus.IN_CLOSET,
     val isLoading: Boolean = false,
     val saved: Boolean = false,
+    val deleted: Boolean = false,
 ) {
     val isNew: Boolean get() = id == null
     val isValid: Boolean get() = title.isNotBlank()
@@ -114,4 +115,25 @@ class ItemEditViewModel(
 
     private fun formatPrice(value: Double): String =
         if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+
+    /** Deletes the existing article (no-op for one still being created). */
+    fun delete() {
+        val current = _state.value
+        val id = current.id ?: return
+        viewModelScope.launch {
+            repository.deleteClothing(
+                ClothingItem(
+                    id = id,
+                    title = current.title,
+                    type = current.type,
+                    imagePath = current.imagePath,
+                    price = current.priceText.toDoubleOrNull(),
+                    status = current.status,
+                    notes = current.notes.trim().ifBlank { null },
+                    updatedAt = System.currentTimeMillis(),
+                )
+            )
+            _state.value = current.copy(deleted = true)
+        }
+    }
 }
