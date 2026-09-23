@@ -9,9 +9,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Preview
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -27,12 +33,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicketItem
@@ -47,11 +57,18 @@ fun TicketDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
-    LaunchedEffect(state.printMessage) {
-        state.printMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.dismissPrintMessage()
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is TicketDetailEvent.Message -> snackbarHostState.showSnackbar(event.text)
+                is TicketDetailEvent.LaunchIntent -> runCatching {
+                    context.startActivity(android.content.Intent.createChooser(event.intent, event.chooserTitle))
+                }.onFailure {
+                    snackbarHostState.showSnackbar("Couldn't open MeowSpool - is it installed?")
+                }
+            }
         }
     }
 
@@ -65,6 +82,9 @@ fun TicketDetailScreen(
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
+                    IconButton(onClick = viewModel::previewTicket, enabled = !state.isPrinting) {
+                        Icon(Icons.Default.Preview, contentDescription = "Preview label")
+                    }
                     IconButton(onClick = viewModel::printTicket, enabled = !state.isPrinting) {
                         if (state.isPrinting) {
                             CircularProgressIndicator(modifier = Modifier.padding(Spacing.sm))
@@ -127,6 +147,29 @@ fun TicketDetailScreen(
                 }
             }
         }
+    }
+
+    state.previewBitmap?.let { bitmap ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissPreview,
+            title = { Text("Label preview") },
+            text = {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Rendered ticket label preview",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissPreview(); viewModel.printTicket() }) { Text("Print") }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissPreview) { Text("Close") }
+            },
+        )
     }
 }
 

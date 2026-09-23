@@ -119,7 +119,7 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                 val ticketId = backStackEntry.arguments?.getLong("ticketId") ?: return@composable
                 val vm: TicketDetailViewModel = viewModel(
                     factory = LambdaViewModelFactory {
-                        TicketDetailViewModel(app.repository, app.printPreferences, ticketId)
+                        TicketDetailViewModel(app.repository, app.printDispatcher, ticketId)
                     },
                 )
                 TicketDetailScreen(viewModel = vm, onBack = { navController.popBackStack() })
