@@ -13,8 +13,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -38,8 +41,10 @@ import com.sonothamin.meowlaundry.ui.laundry.SendToLaundryScreen
 import com.sonothamin.meowlaundry.ui.laundry.SendToLaundryViewModel
 import com.sonothamin.meowlaundry.ui.laundry.TicketDetailScreen
 import com.sonothamin.meowlaundry.ui.laundry.TicketDetailViewModel
+import com.sonothamin.meowlaundry.ui.onboarding.OnboardingScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsViewModel
+import kotlinx.coroutines.launch
 
 private data class TopLevelTab(val destination: Destination, val label: String, val icon: ImageVector)
 
@@ -53,21 +58,49 @@ private val tabs = listOf(
 @Composable
 fun MeowLaundryNavHost(app: MeowLaundryApp) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
+
+    // null while we haven't read the preference yet - avoids a flash of the wrong start screen.
+    val onboardingComplete by app.appPreferences.onboardingComplete.collectAsStateWithLifecycle(initialValue = null)
+    val startDestination = when (onboardingComplete) {
+        null -> return // still loading the preference; render nothing for one frame rather than guess
+        false -> Destination.Onboarding.route
+        true -> Destination.Closet.route
+    }
+
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val showBottomBar = backStackEntry?.destination?.route != Destination.Onboarding.route
 
     Scaffold(
-        bottomBar = { BottomBar(navController) },
+        bottomBar = { if (showBottomBar) BottomBar(navController) },
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = Destination.Closet.route,
-            modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+            startDestination = startDestination,
+            modifier = Modifier.padding(bottom = if (showBottomBar) padding.calculateBottomPadding() else 0.dp),
         ) {
+            composable(Destination.Onboarding.route) {
+                OnboardingScreen(
+                    onFinished = {
+                        scope.launch {
+                            app.appPreferences.setOnboardingComplete(true)
+                            navController.navigate(Destination.Closet.route) {
+                                popUpTo(Destination.Onboarding.route) { inclusive = true }
+                            }
+                        }
+                    },
+                )
+            }
+
             composable(Destination.Closet.route) {
-                val vm: ClosetViewModel = viewModel(factory = LambdaViewModelFactory { ClosetViewModel(app.repository) })
+                val vm: ClosetViewModel = viewModel(
+                    factory = LambdaViewModelFactory { ClosetViewModel(app.repository, app.appPreferences) },
+                )
                 ClosetScreen(
                     viewModel = vm,
                     onAddItem = { navController.navigate(Destination.ItemEditNew.route) },
                     onOpenItem = { id -> navController.navigate(Destination.ItemEdit.route(id)) },
+                    onSendSelectedToLaundry = { ids -> navController.navigate(Destination.SendToLaundry.route(ids)) },
                 )
             }
 
@@ -93,14 +126,22 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                 val vm: LaundryViewModel = viewModel(factory = LambdaViewModelFactory { LaundryViewModel(app.repository) })
                 LaundryScreen(
                     viewModel = vm,
-                    onSendNew = { navController.navigate(Destination.SendToLaundry.route) },
+                    onSendNew = { navController.navigate(Destination.SendToLaundry.route()) },
                     onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) },
                 )
             }
 
-            composable(Destination.SendToLaundry.route) {
+            composable(
+                route = Destination.SendToLaundry.route,
+                arguments = listOf(navArgument("preselected") { type = NavType.StringType; defaultValue = "" }),
+            ) { backStackEntry ->
+                val preselected = backStackEntry.arguments?.getString("preselected")
+                    ?.split(",")
+                    ?.mapNotNull { it.toLongOrNull() }
+                    ?.toSet()
+                    ?: emptySet()
                 val vm: SendToLaundryViewModel = viewModel(
-                    factory = LambdaViewModelFactory { SendToLaundryViewModel(app.repository) },
+                    factory = LambdaViewModelFactory { SendToLaundryViewModel(app.repository, preselected) },
                 )
                 SendToLaundryScreen(
                     viewModel = vm,
@@ -126,7 +167,9 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
             }
 
             composable(Destination.History.route) {
-                val vm: HistoryViewModel = viewModel(factory = LambdaViewModelFactory { HistoryViewModel(app.repository) })
+                val vm: HistoryViewModel = viewModel(
+                    factory = LambdaViewModelFactory { HistoryViewModel(app.repository, app.printDispatcher) },
+                )
                 HistoryScreen(viewModel = vm, onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) })
             }
 
