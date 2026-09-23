@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
 @Database(
     entities = [ClothingItem::class, LaundryTicket::class, LaundryTicketItem::class],
     version = 1,
-    exportSchema = true,
+    exportSchema = false,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
