@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.ui.navigation
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.History
@@ -11,6 +12,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -57,7 +60,7 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
         NavHost(
             navController = navController,
             startDestination = Destination.Closet.route,
-            modifier = androidx.compose.ui.Modifier.padding(bottom = padding.calculateBottomPadding()),
+            modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
         ) {
             composable(Destination.Closet.route) {
                 val vm: ClosetViewModel = viewModel(factory = LambdaViewModelFactory { ClosetViewModel(app.repository) })
