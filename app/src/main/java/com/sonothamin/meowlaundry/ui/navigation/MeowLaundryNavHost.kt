@@ -29,6 +29,8 @@ import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.sonothamin.meowlaundry.MeowLaundryApp
 import com.sonothamin.meowlaundry.ui.LambdaViewModelFactory
+import com.sonothamin.meowlaundry.ui.articleview.ArticleViewModel
+import com.sonothamin.meowlaundry.ui.articleview.ArticleViewScreen
 import com.sonothamin.meowlaundry.ui.closet.ClosetScreen
 import com.sonothamin.meowlaundry.ui.closet.ClosetViewModel
 import com.sonothamin.meowlaundry.ui.history.HistoryScreen
@@ -99,8 +101,23 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                 ClosetScreen(
                     viewModel = vm,
                     onAddItem = { navController.navigate(Destination.ItemEditNew.route) },
-                    onOpenItem = { id -> navController.navigate(Destination.ItemEdit.route(id)) },
+                    onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
                     onSendSelectedToLaundry = { ids -> navController.navigate(Destination.SendToLaundry.route(ids)) },
+                )
+            }
+
+            composable(
+                route = Destination.ArticleView.route,
+                arguments = listOf(navArgument("itemId") { type = NavType.LongType }),
+            ) { backStackEntry ->
+                val itemId = backStackEntry.arguments?.getLong("itemId") ?: return@composable
+                val vm: ArticleViewModel = viewModel(
+                    factory = LambdaViewModelFactory { ArticleViewModel(app.repository, itemId) },
+                )
+                ArticleViewScreen(
+                    viewModel = vm,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { id -> navController.navigate(Destination.ItemEdit.route(id)) },
                 )
             }
 

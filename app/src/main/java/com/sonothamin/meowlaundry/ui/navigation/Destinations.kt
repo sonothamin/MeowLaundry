@@ -9,7 +9,10 @@ sealed class Destination(val route: String) {
     data object Settings : Destination("settings")
 
     data object ItemEditNew : Destination("item/new")
-    data object ItemEdit : Destination("item/{itemId}") {
+    data object ItemEdit : Destination("item/{itemId}/edit") {
+        fun route(itemId: Long) = "item/$itemId/edit"
+    }
+    data object ArticleView : Destination("item/{itemId}") {
         fun route(itemId: Long) = "item/$itemId"
     }
 
