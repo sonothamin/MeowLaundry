@@ -1,5 +1,7 @@
 # MeowLaundry
 
+[![Build APK](https://github.com/sonothamin/MeowLaundry/actions/workflows/build.yml/badge.svg)](https://github.com/sonothamin/MeowLaundry/actions/workflows/build.yml)
+
 An offline, on-device Android app for tracking which clothes are in your closet, which
 are out at the laundry/press, and whether the laundry ever loses something — with optional
 ticket/label printing to a [MeowSpool](https://github.com/sonothamin/MeowSpool) cat printer.
@@ -49,6 +51,12 @@ is currently version 1, so this only matters once the schema needs to change).
 ## Building
 
 Open in Android Studio (Ladybird+/Koala+ recommended) and run. Minimum SDK 26.
+
+This repo doesn't commit a Gradle wrapper jar (binary files don't travel well through
+this project's history), so if `./gradlew` doesn't work for you yet, open the project in
+Android Studio once — it offers to generate the wrapper automatically — or run
+`gradle wrapper` yourself with any local Gradle 8.x install. CI (see the badge above)
+builds with a pinned system Gradle instead, so pushes are always verified regardless.
 
 ## Printing
 
