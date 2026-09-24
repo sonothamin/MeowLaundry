@@ -22,7 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -137,7 +137,7 @@ fun ArticleViewScreen(
                             .padding(Spacing.sm),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        HeroIconButton(icon = Icons.Default.ArrowBack, contentDescription = "Back", onClick = onBack)
+                        HeroIconButton(icon = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", onClick = onBack)
                         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                             if (item.status == ClothingStatus.ARCHIVED) {
                                 HeroIconButton(Icons.Default.Restore, "Restore to closet", viewModel::unarchive)

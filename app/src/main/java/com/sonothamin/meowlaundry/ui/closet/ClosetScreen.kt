@@ -27,7 +27,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -160,7 +160,7 @@ fun ClosetScreen(
                             }
                             IconButton(onClick = viewModel::toggleViewMode) {
                                 Icon(
-                                    if (viewMode == ClosetViewMode.GRID) Icons.Default.ViewList else Icons.Default.GridView,
+                                    if (viewMode == ClosetViewMode.GRID) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
                                     contentDescription = "Toggle grid/list view",
                                 )
                             }
