@@ -79,7 +79,6 @@ import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.Currencies
 import com.sonothamin.meowlaundry.ui.components.archiveReasonLabel
-import com.sonothamin.meowlaundry.ui.theme.CookieShape
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -87,7 +86,7 @@ import java.util.Locale
 
 /**
  * Garment detail screen. Top to bottom: app bar (back, quick laundry action, edit, overflow),
- * a square cookie-shaped hero photo, the title, an at-a-glance info block (status, last washed,
+ * a square, Material rounded-corner hero photo, the title, an at-a-glance info block (status, last washed,
  * last pressed, added, trips, value), a quick laundry button, notes, expandable details, and an
  * Activity feed with the garment's care history.
  */
@@ -175,10 +174,10 @@ fun ArticleViewScreen(
         val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // --- Hero: square crop (no letterboxing), clipped to a Material-style cookie shape ---
+            // --- Hero: square crop (no letterboxing) with the Material extra-large rounded corners ---
             item {
                 Box(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
                     contentAlignment = Alignment.Center,
                 ) {
                     Box(
@@ -186,7 +185,7 @@ fun ArticleViewScreen(
                             .widthIn(max = 420.dp)
                             .fillMaxWidth()
                             .aspectRatio(1f)
-                            .clip(CookieShape())
+                            .clip(MaterialTheme.shapes.extraLarge)
                             .background(MaterialTheme.colorScheme.secondaryContainer),
                         contentAlignment = Alignment.Center,
                     ) {
