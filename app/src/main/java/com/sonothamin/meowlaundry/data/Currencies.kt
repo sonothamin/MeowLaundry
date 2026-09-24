@@ -24,6 +24,9 @@ object Currencies {
     fun symbol(code: String): String =
         currencyOrNull(code)?.getSymbol(Locale.getDefault()) ?: code
 
+    /** The symbol only when it adds something (e.g. "$", "৳"); null when it would just repeat the code. */
+    fun symbolOrNull(code: String): String? = symbol(code).takeIf { it.isNotBlank() && !it.equals(code, ignoreCase = true) }
+
     fun displayName(code: String): String =
         currencyOrNull(code)?.getDisplayName(Locale.getDefault()) ?: code
 

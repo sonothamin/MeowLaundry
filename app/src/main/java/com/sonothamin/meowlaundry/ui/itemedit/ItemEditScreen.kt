@@ -254,7 +254,6 @@ fun ItemEditScreen(
                 CurrencyDropdown(
                     selected = state.currency,
                     onSelect = viewModel::onCurrencyChange,
-                    compact = true,
                     modifier = Modifier.width(128.dp),
                 )
                 OutlinedTextField(

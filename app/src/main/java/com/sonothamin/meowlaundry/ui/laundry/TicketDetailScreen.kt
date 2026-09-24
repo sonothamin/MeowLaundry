@@ -420,7 +420,6 @@ private fun GarmentDecisionCard(
                             activeContainerColor = container,
                             activeContentColor = content,
                         ),
-                        contentPadding = PaddingValues(horizontal = Spacing.sm),
                         icon = {
                             Icon(
                                 decisionIcon(option),

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,6 +35,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.setValue
@@ -136,8 +138,8 @@ fun ColorField(
 }
 
 /**
- * Read-only currency dropdown. [compact] shows just the code ("USD") for tight rows;
- * otherwise "USD · US Dollar".
+ * Read-only currency dropdown. The field shows just the 3-letter code ("USD"); the menu lists each
+ * option as a symbol column plus its code, with the current one highlighted.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,13 +148,12 @@ fun CurrencyDropdown(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
     label: String = "Currency",
-    compact: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val options = remember(selected) { Currencies.options(selected) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
         OutlinedTextField(
-            value = if (compact) selected else Currencies.label(selected),
+            value = selected,
             onValueChange = {},
             readOnly = true,
             singleLine = true,
@@ -162,8 +163,25 @@ fun CurrencyDropdown(
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { code ->
+                val isSelected = code == selected
                 DropdownMenuItem(
-                    text = { Text("${Currencies.symbol(code)}  ${Currencies.label(code)}") },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Symbol column keeps the codes aligned; blank when the symbol is just the code again.
+                            Text(
+                                Currencies.symbolOrNull(code).orEmpty(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(36.dp),
+                            )
+                            Text(
+                                code,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else null,
+                            )
+                        }
+                    },
                     onClick = {
                         onSelect(code)
                         expanded = false
