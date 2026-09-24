@@ -5,8 +5,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ClothingItem::class, LaundryTicket::class, LaundryTicketItem::class, ClothingItemPhoto::class],
@@ -22,61 +20,17 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         private const val DB_NAME = "meowlaundry.db"
 
-        /**
-         * Adds archiving to [ClothingItem] and the multi-photo table. Existing single-photo
-         * garments get a matching row in clothing_item_photos so the new gallery UI has
-         * something to show without any data loss.
-         */
-        val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE clothing_items ADD COLUMN archiveReason TEXT")
-                db.execSQL("ALTER TABLE clothing_items ADD COLUMN archivedAt INTEGER")
-                db.execSQL("ALTER TABLE clothing_items ADD COLUMN archiveNotes TEXT")
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS clothing_item_photos (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        clothingItemId INTEGER NOT NULL,
-                        path TEXT NOT NULL,
-                        isPrimary INTEGER NOT NULL,
-                        sortOrder INTEGER NOT NULL,
-                        createdAt INTEGER NOT NULL,
-                        FOREIGN KEY(clothingItemId) REFERENCES clothing_items(id) ON DELETE CASCADE
-                    )
-                    """.trimIndent()
-                )
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_clothing_item_photos_clothingItemId ON clothing_item_photos(clothingItemId)")
-                db.execSQL(
-                    """
-                    INSERT INTO clothing_item_photos (clothingItemId, path, isPrimary, sortOrder, createdAt)
-                    SELECT id, imagePath, 1, 0, ${System.currentTimeMillis()}
-                    FROM clothing_items
-                    WHERE imagePath IS NOT NULL AND imagePath != ''
-                    """.trimIndent()
-                )
-            }
-        }
-
-        /**
-         * Adds brand / garment type / colour and the price currency. Existing rows keep working:
-         * the three text columns are simply null and the currency defaults to USD.
-         */
-        val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE clothing_items ADD COLUMN brand TEXT")
-                db.execSQL("ALTER TABLE clothing_items ADD COLUMN garmentType TEXT")
-                db.execSQL("ALTER TABLE clothing_items ADD COLUMN color TEXT")
-                db.execSQL("ALTER TABLE clothing_items ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'")
-            }
-        }
-
         @Volatile
         private var instance: AppDatabase? = null
 
+        /**
+         * Pre-alpha: there are no migrations. Any schema change wipes the local database on the
+         * next launch instead of crashing. Use Settings -> Backup if the data matters.
+         */
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
             }

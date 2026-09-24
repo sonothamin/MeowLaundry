@@ -18,8 +18,9 @@ no cloud, no network access except (optionally) to a MeowSpool print server on y
 
 Core functionality is implemented end to end: closet management, sending clothes to the
 laundry, receiving them back (or marking them lost), history, printing, and backup. See
-the checklist below. Not yet done: automated tests, and Room database migrations (schema
-is currently version 1, so this only matters once the schema needs to change).
+the checklist below. Not yet done: automated tests. The project is pre-alpha and ships no
+Room migrations: a schema change wipes the local database on the next launch (use
+Settings -> Backup first if the data matters).
 
 ## Features
 
