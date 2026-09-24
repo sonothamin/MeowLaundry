@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.sonothamin.meowlaundry.data.ThemeMode
 
@@ -13,6 +14,7 @@ import com.sonothamin.meowlaundry.data.ThemeMode
 fun MeowLaundryTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     dynamicColor: Boolean = true,
+    uiFont: UiFont = UiFont.DEFAULT,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (themeMode) {
@@ -28,9 +30,11 @@ fun MeowLaundryTheme(
         else -> LightColors
     }
 
+    val typography = remember(uiFont) { typographyFor(context, uiFont) }
+
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AppTypography,
+        typography = typography,
         shapes = AppShapes,
         content = content,
     )

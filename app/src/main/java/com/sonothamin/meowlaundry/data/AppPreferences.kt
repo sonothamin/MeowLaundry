@@ -24,6 +24,7 @@ class AppPreferences(private val context: Context) {
         val CLOSET_VIEW_MODE = stringPreferencesKey("closet_view_mode")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         val DEFAULT_CURRENCY = stringPreferencesKey("default_currency")
+        val UI_FONT = stringPreferencesKey("ui_font")
     }
 
     /** Currency pre-selected for new articles. Falls back to the device's regional currency. */
@@ -33,6 +34,16 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setDefaultCurrency(code: String) {
         context.appDataStore.edit { it[Keys.DEFAULT_CURRENCY] = code }
+    }
+
+    /**
+     * Raw name of the chosen UiFont, or null when the user never picked one. Resolve it with
+     * UiFont.resolve(), which also handles unknown or no-longer-available fonts.
+     */
+    val uiFont: Flow<String?> = context.appDataStore.data.map { prefs -> prefs[Keys.UI_FONT] }
+
+    suspend fun setUiFont(name: String) {
+        context.appDataStore.edit { it[Keys.UI_FONT] = name }
     }
 
     val themeMode: Flow<ThemeMode> = context.appDataStore.data.map { prefs ->

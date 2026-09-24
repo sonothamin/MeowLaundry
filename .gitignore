@@ -13,3 +13,6 @@ local.properties
 /app/build
 /app/release
 *.hprof
+
+# Ndot/NType/Samsung Sans are third-party fonts fetched at build time (see app/build.gradle.kts), not redistributed here.
+app/src/main/assets/fonts/

@@ -1,3 +1,5 @@
+import java.net.URL
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -77,3 +79,31 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.okhttp)
 }
+
+// Ndot/NType (Nothing) and Samsung Sans are branded fonts that aren't ours to commit to this repo.
+// Fetch them into assets at build time instead (app/src/main/assets/fonts/ is gitignored). A failed or
+// offline fetch just leaves the files missing; the app then simply doesn't offer those fonts
+// (see UiFont.isAvailable in ui/theme/Fonts.kt) rather than failing the build.
+val fontAssetDir = File(projectDir, "src/main/assets/fonts")
+val fetchedFonts = mapOf(
+    "ndot.otf" to "https://raw.githubusercontent.com/xeji01/nothingfont/main/fonts/Ndot57-Regular.otf",
+    "ntype.otf" to "https://raw.githubusercontent.com/xeji01/nothingfont/main/fonts/NType82-Headline.otf",
+    "samsungsans.ttf" to "https://raw.githubusercontent.com/Odrha23/samsung-sans/master/SamsungSans-Regular.ttf",
+)
+tasks.register("fetchFonts") {
+    doLast {
+        fontAssetDir.mkdirs()
+        fetchedFonts.forEach { (name, url) ->
+            val f = File(fontAssetDir, name)
+            if (f.exists() && f.length() > 0) return@forEach
+            try {
+                println("MeowLaundry: fetching $name…")
+                URL(url).openStream().use { input -> f.outputStream().use { input.copyTo(it) } }
+            } catch (e: Exception) {
+                f.delete()
+                println("MeowLaundry: couldn't fetch $name (${e.message}); that font just won't be offered.")
+            }
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn("fetchFonts") }

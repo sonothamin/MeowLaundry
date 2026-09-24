@@ -10,6 +10,7 @@ import com.sonothamin.meowlaundry.data.ThemeMode
 import com.sonothamin.meowlaundry.data.backup.BackupManager
 import com.sonothamin.meowlaundry.print.MeowSpoolClient
 import com.sonothamin.meowlaundry.print.MeowSpoolResult
+import com.sonothamin.meowlaundry.ui.theme.UiFont
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +36,14 @@ class SettingsViewModel(
 
     val themeMode: StateFlow<ThemeMode> = appPreferences.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.SYSTEM)
+
+    /** Raw stored font name (null = never chosen); the screen resolves it against what's available. */
+    val uiFontName: StateFlow<String?> = appPreferences.uiFont
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setUiFont(font: UiFont) {
+        viewModelScope.launch { appPreferences.setUiFont(font.name) }
+    }
 
     val defaultCurrency: StateFlow<String> = appPreferences.defaultCurrency
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.sonothamin.meowlaundry.data.Currencies.deviceDefault())

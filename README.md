@@ -38,6 +38,7 @@ Settings -> Backup first if the data matters).
 | Export all data (items + tickets + photos) to a file | ✅ |
 | Import data back from an export file | ✅ |
 | Material 3 Expressive theming (dynamic color, expressive shapes) | ✅ |
+| UI font choice in Settings (Inter, Google Sans, Ndot, NType, Samsung Sans, system) | ✅ |
 | 100% offline / on-device (SQLite via Room) | ✅ |
 
 ## Tech stack
@@ -70,3 +71,9 @@ docs for how to enable the server.
 
 All data lives in this app's private storage. The only network calls this app ever makes
 are to a MeowSpool print server address you configure yourself, on your local network.
+
+## Fonts
+
+Inter and Google Sans Flex are bundled under the SIL Open Font License (see `licenses/fonts/`).
+Ndot/NType (Nothing) and Samsung Sans are not redistributable, so the build downloads them into
+`app/src/main/assets/fonts/` (gitignored); if the download fails, those options are simply not offered.
