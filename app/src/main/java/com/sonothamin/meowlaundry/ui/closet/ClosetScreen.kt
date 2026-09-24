@@ -5,11 +5,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -38,24 +36,19 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.background
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -159,13 +152,8 @@ fun ClosetScreen(
                         },
                     )
                 } else {
-                    LargeTopAppBar(
-                        title = {
-                            Column {
-                                BrandLockup()
-                                Text("My closet")
-                            }
-                        },
+                    TopAppBar(
+                        title = { Text("My closet") },
                         actions = {
                             IconButton(onClick = { viewModel.setSearchActive(true) }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search")
@@ -177,7 +165,6 @@ fun ClosetScreen(
                                 )
                             }
                         },
-                        colors = TopAppBarDefaults.largeTopAppBarColors(),
                     )
                 }
             }
@@ -323,32 +310,6 @@ private fun FilterRow(selected: ClothingStatus?, onSelect: (ClothingStatus?) -> 
             selected = selected == ClothingStatus.ARCHIVED,
             onClick = { onSelect(ClothingStatus.ARCHIVED) },
             label = { Text("Archived") },
-        )
-    }
-}
-
-/** App mark + wordmark shown above the screen title in the closet app bar. */
-@Composable
-private fun BrandLockup() {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Checkroom,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(15.dp),
-            )
-        }
-        Text(
-            "MeowLaundry",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
         )
     }
 }
