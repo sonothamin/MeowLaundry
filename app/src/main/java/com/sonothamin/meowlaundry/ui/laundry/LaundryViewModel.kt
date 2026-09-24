@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -23,6 +24,19 @@ import kotlinx.coroutines.launch
 sealed class LaundryEvent {
     data class LaunchIntent(val intent: android.content.Intent, val chooserTitle: String) : LaundryEvent()
     data class Message(val text: String) : LaundryEvent()
+}
+
+/** A ticket plus the numbers and thumbnails its list card shows. */
+data class TicketOverview(
+    val ticket: LaundryTicket,
+    val total: Int,
+    val returned: Int,
+    val lost: Int,
+    /** Photo paths of the first few garments; null entries have no photo (show a placeholder). */
+    val thumbs: List<String?>,
+) {
+    /** Garments that are settled one way or the other. */
+    val accountedFor: Int get() = returned + lost
 }
 
 /**
@@ -37,6 +51,25 @@ class LaundryViewModel(
 
     val tickets: StateFlow<List<LaundryTicket>> = repository.observeAllTickets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val overviews: StateFlow<List<TicketOverview>> = combine(
+        repository.observeAllTickets(),
+        repository.observeAllTicketItems(),
+        repository.observeAllClothing(),
+    ) { tickets, items, clothing ->
+        val imageById = clothing.associate { it.id to it.imagePath }
+        val itemsByTicket = items.groupBy { it.ticketId }
+        tickets.map { ticket ->
+            val its = itemsByTicket[ticket.id].orEmpty()
+            TicketOverview(
+                ticket = ticket,
+                total = its.size,
+                returned = its.count { it.returned },
+                lost = its.count { it.lost },
+                thumbs = its.take(MAX_THUMBS).map { imageById[it.clothingItemId] },
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedIds: StateFlow<Set<Long>> = _selectedIds
@@ -156,3 +189,5 @@ class LaundryViewModel(
         return bitmaps
     }
 }
+
+private const val MAX_THUMBS = 4

@@ -1,20 +1,22 @@
 package com.sonothamin.meowlaundry.ui.laundry
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -25,10 +27,10 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,24 +48,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.ui.components.EmptyState
 import com.sonothamin.meowlaundry.data.DueDates
 import com.sonothamin.meowlaundry.data.DueState
-import com.sonothamin.meowlaundry.ui.components.DueChip
-import com.sonothamin.meowlaundry.ui.components.serviceLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Every laundry ticket - active and past - in one place, with long-press multiselect for
@@ -82,6 +82,11 @@ fun LaundryScreen(
     onFlashShown: () -> Unit = {},
 ) {
     val tickets by viewModel.tickets.collectAsStateWithLifecycle()
+    val overviews by viewModel.overviews.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // The extended FAB collapses to an icon once the list scrolls, out of the way of the cards.
+    val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
     val selectionMode by viewModel.selectionMode.collectAsStateWithLifecycle()
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -129,6 +134,7 @@ fun LaundryScreen(
     }
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             AnimatedContent(targetState = selectionMode, label = "laundry-topbar") { inSelection ->
                 if (inSelection) {
@@ -158,8 +164,9 @@ fun LaundryScreen(
                         },
                     )
                 } else {
-                    TopAppBar(
+                    LargeTopAppBar(
                         title = { Text("Laundry") },
+                        scrollBehavior = scrollBehavior,
                         actions = {
                             if (closedCount > 0) {
                                 IconButton(onClick = { showClearAllConfirm = true }) {
@@ -173,9 +180,12 @@ fun LaundryScreen(
         },
         floatingActionButton = {
             if (!selectionMode) {
-                FloatingActionButton(onClick = onSendNew) {
-                    Icon(Icons.Default.Add, contentDescription = "Send clothes to laundry")
-                }
+                ExtendedFloatingActionButton(
+                    onClick = onSendNew,
+                    expanded = fabExpanded,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("New ticket") },
+                )
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -188,23 +198,46 @@ fun LaundryScreen(
                 modifier = Modifier.padding(padding),
             )
         } else {
+            val (closedTickets, activeTickets) = remember(overviews) {
+                overviews.partition { it.ticket.status == TicketStatus.CLOSED }
+            }
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(Spacing.md),
+                // extra bottom room so the FAB never covers the last card
+                contentPadding = PaddingValues(start = Spacing.md, end = Spacing.md, top = Spacing.sm, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 if (overdueCount > 0 && !selectionMode) {
-                    item { OverdueBanner(overdueCount) }
+                    item(key = "overdue-banner") { OverdueBanner(overdueCount) }
                 }
-                items(tickets, key = { it.id }) { ticket ->
-                    TicketRow(
-                        ticket = ticket,
-                        selected = ticket.id in selectedIds,
-                        onClick = {
-                            if (selectionMode) viewModel.toggleSelection(ticket.id) else onOpenTicket(ticket.id)
-                        },
-                        onLongClick = { viewModel.startSelection(ticket.id) },
-                    )
+                if (activeTickets.isNotEmpty()) {
+                    item(key = "header-active") { SectionHeader("At the laundry", activeTickets.size) }
+                    items(activeTickets, key = { it.ticket.id }) { overview ->
+                        TicketCard(
+                            overview = overview,
+                            selected = overview.ticket.id in selectedIds,
+                            onClick = {
+                                if (selectionMode) viewModel.toggleSelection(overview.ticket.id) else onOpenTicket(overview.ticket.id)
+                            },
+                            onLongClick = { viewModel.startSelection(overview.ticket.id) },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                }
+                if (closedTickets.isNotEmpty()) {
+                    item(key = "header-closed") { SectionHeader("History", closedTickets.size) }
+                    items(closedTickets, key = { it.ticket.id }) { overview ->
+                        TicketCard(
+                            overview = overview,
+                            selected = overview.ticket.id in selectedIds,
+                            onClick = {
+                                if (selectionMode) viewModel.toggleSelection(overview.ticket.id) else onOpenTicket(overview.ticket.id)
+                            },
+                            onLongClick = { viewModel.startSelection(overview.ticket.id) },
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
                 }
             }
         }
@@ -241,74 +274,52 @@ fun LaundryScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TicketRow(
-    ticket: LaundryTicket,
-    selected: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-) {
-    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
-            else MaterialTheme.colorScheme.surfaceContainer,
-        ),
+private fun SectionHeader(title: String, count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = Spacing.sm, top = Spacing.md, bottom = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Ticket #${ticket.id} · ${serviceLabel(ticket.serviceType)}", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Sent ${dateFormat.format(Date(ticket.sentAt))}" +
-                        (ticket.receivedAt?.let { " · received ${dateFormat.format(Date(it))}" } ?: ""),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = statusLabel(ticket.status),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                DueDates.info(ticket)?.let { info ->
-                    DueChip(info, modifier = Modifier.padding(top = Spacing.xs))
-                }
-            }
-            if (selected) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
-            }
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+            Text(
+                count.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 2.dp),
+            )
         }
     }
 }
 
 @Composable
 private fun OverdueBanner(count: Int) {
-    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.errorContainer) {
+    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.errorContainer) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-            Text(
-                if (count == 1) "1 ticket is overdue" else "$count tickets are overdue",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-            )
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(22.dp))
+            }
+            Column {
+                Text(
+                    if (count == 1) "1 ticket is overdue" else "$count tickets are overdue",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Text(
+                    "Check with your laundry",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
         }
     }
 }
 
-private fun statusLabel(status: TicketStatus) = when (status) {
-    TicketStatus.SENT -> "Out"
-    TicketStatus.PARTIALLY_RECEIVED -> "Partially back"
-    TicketStatus.RECEIVED -> "All back"
-    TicketStatus.CLOSED -> "Closed"
-}
