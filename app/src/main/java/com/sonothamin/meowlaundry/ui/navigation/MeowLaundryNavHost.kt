@@ -160,6 +160,8 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
                     onEdit = { id -> navController.navigate(Destination.ItemEdit.route(id)) },
+                    onSendToLaundry = { id -> navController.navigate(Destination.SendToLaundry.route(listOf(id))) },
+                    onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) },
                 )
             }
 

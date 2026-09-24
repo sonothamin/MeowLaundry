@@ -1,10 +1,13 @@
 package com.sonothamin.meowlaundry.ui.articleview
 
+import android.text.format.DateUtils
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,25 +17,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DryCleaning
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalLaundryService
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,13 +47,19 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,26 +68,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingStatus
-import com.sonothamin.meowlaundry.data.LaundryTicketItem
+import com.sonothamin.meowlaundry.data.Currencies
 import com.sonothamin.meowlaundry.ui.components.archiveReasonLabel
+import com.sonothamin.meowlaundry.ui.theme.CookieShape
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * Garment detail screen, reached by tapping it in the closet. Laid out like a photo app's
- * details view (full-bleed photo up top with overlaid back/action buttons, a date/time
- * header, a caption-style notes row, then an expandable "Details" card) rather than a form,
- * since editing and deleting both happen elsewhere - the pencil action is the deliberate,
- * single way in to Edit Article.
+ * Garment detail screen. Top to bottom: app bar (back, quick laundry action, edit, overflow),
+ * a square cookie-shaped hero photo, the title, an at-a-glance info block (status, last washed,
+ * last pressed, added, trips, value), a quick laundry button, notes, expandable details, and an
+ * Activity feed with the garment's care history.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,11 +97,14 @@ fun ArticleViewScreen(
     viewModel: ArticleViewModel,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
+    onSendToLaundry: (Long) -> Unit,
+    onOpenTicket: (Long) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showArchiveDialog by remember { mutableStateOf(false) }
     var detailsExpanded by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
     var selectedPhotoPath by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(state.deleted) {
@@ -95,8 +112,62 @@ fun ArticleViewScreen(
     }
 
     val item = state.item
+    val care = remember(state.events) { summarizeCare(state.events) }
+    val activity = remember(item, state.events) { item?.let { buildActivity(it, state.events) }.orEmpty() }
 
-    Scaffold { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {},
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
+                actions = {
+                    if (item != null) {
+                        // Quick laundry action: send it off, or jump to the ticket it's already out on.
+                        when {
+                            item.status == ClothingStatus.IN_CLOSET ->
+                                IconButton(onClick = { onSendToLaundry(item.id) }) {
+                                    Icon(Icons.Default.LocalLaundryService, contentDescription = "Send to laundry")
+                                }
+                            item.status == ClothingStatus.AT_LAUNDRY && care.activeTicketId != null ->
+                                IconButton(onClick = { onOpenTicket(care.activeTicketId) }) {
+                                    Icon(Icons.Default.ConfirmationNumber, contentDescription = "View laundry ticket")
+                                }
+                        }
+                        IconButton(onClick = { onEdit(item.id) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit article")
+                        }
+                        Box {
+                            IconButton(onClick = { menuOpen = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More actions")
+                            }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                if (item.status == ClothingStatus.ARCHIVED) {
+                                    DropdownMenuItem(
+                                        text = { Text("Restore to closet") },
+                                        leadingIcon = { Icon(Icons.Default.Restore, contentDescription = null) },
+                                        onClick = { menuOpen = false; viewModel.unarchive() },
+                                    )
+                                } else {
+                                    DropdownMenuItem(
+                                        text = { Text("Archive") },
+                                        leadingIcon = { Icon(Icons.Default.Inventory2, contentDescription = null) },
+                                        onClick = { menuOpen = false; showArchiveDialog = true },
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("Delete") },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                    onClick = { menuOpen = false; showDeleteConfirm = true },
+                                )
+                            }
+                        }
+                    }
+                },
+            )
+        },
+    ) { padding ->
         if (item == null) return@Scaffold
 
         val heroPath = selectedPhotoPath ?: item.imagePath
@@ -104,14 +175,19 @@ fun ArticleViewScreen(
         val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // --- Full-bleed photo header, with back/action buttons floating on top of it ---
+            // --- Hero: square crop (no letterboxing), clipped to a Material-style cookie shape ---
             item {
-                Box(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Box(
                         modifier = Modifier
+                            .widthIn(max = 420.dp)
                             .fillMaxWidth()
                             .aspectRatio(1f)
-                            .background(Color.Black),
+                            .clip(CookieShape())
+                            .background(MaterialTheme.colorScheme.secondaryContainer),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (heroPath != null) {
@@ -119,60 +195,42 @@ fun ArticleViewScreen(
                                 model = heroPath,
                                 contentDescription = item.title,
                                 modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit,
+                                contentScale = ContentScale.Crop,
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Checkroom,
                                 contentDescription = null,
-                                modifier = Modifier.padding(Spacing.xxl),
-                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(72.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             )
-                        }
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(Spacing.sm),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        HeroIconButton(icon = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", onClick = onBack)
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            if (item.status == ClothingStatus.ARCHIVED) {
-                                HeroIconButton(Icons.Default.Restore, "Restore to closet", viewModel::unarchive)
-                            } else {
-                                HeroIconButton(Icons.Default.Inventory2, "Archive article") { showArchiveDialog = true }
-                            }
-                            HeroIconButton(Icons.Default.Edit, "Edit article") { onEdit(item.id) }
-                            HeroIconButton(Icons.Default.Delete, "Delete article") { showDeleteConfirm = true }
                         }
                     }
                 }
             }
 
-            // A thumbnail strip under the header lets you flip through the rest of the gallery,
-            // the way a photo app lets you swipe between shots of the same subject.
+            // Thumbnail strip to flip through the rest of the gallery.
             if (state.photos.size > 1) {
                 item {
                     LazyRow(
-                        contentPadding = PaddingValues(Spacing.sm),
+                        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         items(state.photos, key = { it.id }) { photo ->
-                            val isSelected = (selectedPhotoPath ?: item.imagePath) == photo.path
+                            val isSelected = heroPath == photo.path
                             AsyncImage(
                                 model = photo.path,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(56.dp)
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                        RoundedCornerShape(8.dp),
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .border(
+                                        width = if (isSelected) 2.dp else 0.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        shape = MaterialTheme.shapes.medium,
                                     )
-                                    .padding(if (isSelected) 2.dp else 0.dp)
                                     .clickable { selectedPhotoPath = photo.path },
                             )
                         }
@@ -180,28 +238,83 @@ fun ArticleViewScreen(
                 }
             }
 
-            // --- The "sheet" below the photo: date/time, caption, then an expandable Details card ---
+            // --- Title ---
             item {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(Spacing.md),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md).padding(top = Spacing.sm),
                     verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
                     Text(item.title, style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        "${dateFormat.format(Date(item.createdAt))} · ${timeFormat.format(Date(item.createdAt)).lowercase(Locale.getDefault())}",
+                        listOfNotNull(
+                            item.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                            item.brand,
+                        ).joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
+            // --- Info block, directly under the title ---
+            item {
+                Box(modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.md)) {
+                    InfoBlock(
+                        rows = listOf(
+                            listOf(
+                                InfoCell("Status", statusLabel(item.status), valueColor = statusColor(item.status)),
+                                dateCell("Last washed", care.lastWashedAt),
+                                dateCell("Last pressed", care.lastPressedAt),
+                            ),
+                            listOf(
+                                dateCell("Added", item.createdAt, neverLabel = "—"),
+                                InfoCell(
+                                    "Laundry trips",
+                                    care.timesSent.toString(),
+                                    sub = if (care.timesSent == 1) "time" else "times",
+                                ),
+                                InfoCell(
+                                    "Value",
+                                    item.price?.let { Currencies.format(it, item.currency) } ?: "—",
+                                    sub = if (item.price != null) "to replace" else null,
+                                ),
+                            ),
+                        ),
+                    )
+                }
+            }
+
+            // --- Quick laundry action (mirrors the app bar) ---
+            if (item.status == ClothingStatus.IN_CLOSET || (item.status == ClothingStatus.AT_LAUNDRY && care.activeTicketId != null)) {
+                item {
+                    val atLaundry = item.status == ClothingStatus.AT_LAUNDRY
+                    FilledTonalButton(
+                        onClick = {
+                            if (atLaundry) onOpenTicket(care.activeTicketId!!) else onSendToLaundry(item.id)
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md),
+                    ) {
+                        Icon(
+                            if (atLaundry) Icons.Default.ConfirmationNumber else Icons.Default.LocalLaundryService,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            if (atLaundry) "View laundry ticket" else "Send to laundry",
+                            modifier = Modifier.padding(start = Spacing.sm),
+                        )
+                    }
+                }
+            }
+
+            // --- Notes ---
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.md)
                         .clickable { onEdit(item.id) }
-                        .padding(vertical = Spacing.sm),
+                        .padding(vertical = Spacing.md),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.EditNote, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -218,14 +331,7 @@ fun ArticleViewScreen(
                 }
             }
 
-            item {
-                Text(
-                    "Details",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                )
-            }
-
+            // --- Expandable details ---
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md),
@@ -240,84 +346,48 @@ fun ArticleViewScreen(
                                 .padding(Spacing.md),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Default.Checkroom, contentDescription = null)
-                            Column(modifier = Modifier.weight(1f).padding(start = Spacing.sm)) {
-                                Text(
-                                    item.type.name.lowercase().replaceFirstChar { it.uppercase() },
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                                Text(
-                                    statusLabel(item.status),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = statusColor(item.status),
-                                )
-                            }
+                            Text("Details", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                             Icon(
                                 if (detailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                 contentDescription = if (detailsExpanded) "Collapse" else "Expand",
                             )
                         }
-
                         if (detailsExpanded) {
-                            HorizontalDetailDivider()
                             listOf(
+                                "Category" to item.type.name.lowercase().replaceFirstChar { it.uppercase() },
                                 "Garment type" to item.garmentType,
                                 "Brand" to item.brand,
                                 "Color" to item.color,
-                            ).forEach { (label, value) ->
-                                if (!value.isNullOrBlank()) {
-                                    DetailRow(label, value)
-                                    HorizontalDetailDivider()
-                                }
-                            }
-                            item.price?.let {
-                                DetailRow("Replacement price", com.sonothamin.meowlaundry.data.Currencies.format(it, item.currency))
-                                HorizontalDetailDivider()
-                            }
-                            DetailRow("Photos", if (state.photos.isEmpty()) "None" else "${state.photos.size}")
-                            HorizontalDetailDivider()
-                            DetailRow("Added", "${dateFormat.format(Date(item.createdAt))}, ${timeFormat.format(Date(item.createdAt)).lowercase(Locale.getDefault())}")
-                            if (item.updatedAt != item.createdAt) {
-                                HorizontalDetailDivider()
-                                DetailRow("Last updated", "${dateFormat.format(Date(item.updatedAt))}, ${timeFormat.format(Date(item.updatedAt)).lowercase(Locale.getDefault())}")
+                                "Photos" to if (state.photos.isEmpty()) "None" else "${state.photos.size}",
+                                "Added" to "${dateFormat.format(Date(item.createdAt))}, ${timeFormat.format(Date(item.createdAt)).lowercase(Locale.getDefault())}",
+                                "Last updated" to item.updatedAt.takeIf { it != item.createdAt }?.let {
+                                    "${dateFormat.format(Date(it))}, ${timeFormat.format(Date(it)).lowercase(Locale.getDefault())}"
+                                },
+                            ).filter { !it.second.isNullOrBlank() }.forEach { (label, value) ->
+                                HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))
+                                DetailRow(label, value!!)
                             }
                             if (item.status == ClothingStatus.ARCHIVED) {
-                                HorizontalDetailDivider()
+                                HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))
                                 DetailRow("Archived as", item.archiveReason?.let { archiveReasonLabel(it) } ?: "—")
-                                item.archivedAt?.let {
-                                    HorizontalDetailDivider()
-                                    DetailRow("Archived on", dateFormat.format(Date(it)))
-                                }
-                                item.archiveNotes?.takeIf { it.isNotBlank() }?.let {
-                                    HorizontalDetailDivider()
-                                    DetailRow("Archive notes", it)
-                                }
                             }
                         }
                     }
                 }
             }
 
-            if (state.history.isNotEmpty()) {
-                item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm).padding(top = Spacing.sm),
-                    ) {
-                        Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Laundry history", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
-                items(state.history, key = { it.id }) { ticketItem ->
-                    Box(modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs)) {
-                        HistoryRow(ticketItem)
-                    }
-                }
-                item { Spacer(modifier = Modifier.height(Spacing.md)) }
-            } else {
-                item { Spacer(modifier = Modifier.height(Spacing.md)) }
+            // --- Activity: care history ---
+            item {
+                Text(
+                    "Activity",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = Spacing.md).padding(top = Spacing.lg, bottom = Spacing.sm),
+                )
             }
+            items(activity, key = { "${it.kind}-${it.ticketId}-${it.at}" }) { entry ->
+                ActivityRow(entry = entry, onOpenTicket = onOpenTicket)
+            }
+            item { Spacer(modifier = Modifier.height(Spacing.lg)) }
         }
     }
 
@@ -349,17 +419,108 @@ fun ArticleViewScreen(
     }
 }
 
-/** A circular, semi-transparent icon button meant to float directly on top of a photo. */
+private data class InfoCell(
+    val label: String,
+    val value: String,
+    val sub: String? = null,
+    val valueColor: Color? = null,
+)
+
+/** "3 days ago" under the date, or [neverLabel] when there is no date yet. */
+private fun dateCell(label: String, at: Long?, neverLabel: String = "Never"): InfoCell {
+    if (at == null) return InfoCell(label, neverLabel)
+    val date = SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(at))
+    val relative = DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS).toString()
+    return InfoCell(label, date, sub = relative)
+}
+
+/** One rounded surface split into equal segments (dividers between), like the closet summary. */
 @Composable
-private fun HeroIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, contentDescription: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .background(Color.Black.copy(alpha = 0.35f), CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+private fun InfoBlock(rows: List<List<InfoCell>>) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = Color.White)
+        Column {
+            rows.forEachIndexed { rowIndex, cells ->
+                if (rowIndex > 0) HorizontalDivider()
+                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                    cells.forEachIndexed { cellIndex, cell ->
+                        if (cellIndex > 0) VerticalDivider()
+                        Column(
+                            modifier = Modifier.weight(1f).padding(horizontal = Spacing.sm, vertical = Spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                cell.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                            Text(
+                                cell.value,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = cell.valueColor ?: MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                cell.sub ?: " ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityRow(entry: ActivityEntry, onOpenTicket: (Long) -> Unit) {
+    val ticketId = entry.ticketId
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (ticketId != null) Modifier.clickable { onOpenTicket(ticketId) } else Modifier)
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        val isProblem = entry.kind == ActivityKind.LOST
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isProblem) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = when (entry.kind) {
+                    ActivityKind.ADDED -> Icons.Default.Checkroom
+                    ActivityKind.WASH, ActivityKind.WASH_AND_PRESS -> Icons.Default.LocalLaundryService
+                    ActivityKind.PRESS -> Icons.Default.AutoAwesome
+                    ActivityKind.DRY_CLEAN -> Icons.Default.DryCleaning
+                    ActivityKind.OUT_FOR_CARE -> Icons.Default.Schedule
+                    ActivityKind.LOST -> Icons.Default.ReportProblem
+                    ActivityKind.ARCHIVED -> Icons.Default.Inventory2
+                },
+                contentDescription = null,
+                tint = if (isProblem) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(entry.title, style = MaterialTheme.typography.bodyLarge)
+            entry.detail?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 
@@ -372,11 +533,6 @@ private fun DetailRow(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium)
     }
-}
-
-@Composable
-private fun HorizontalDetailDivider() {
-    androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -433,30 +589,6 @@ private fun ArchiveDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
-}
-
-@Composable
-private fun HistoryRow(ticketItem: LaundryTicketItem) {
-    Card(
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
-            Icon(Icons.Default.LocalLaundryService, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(
-                when {
-                    ticketItem.lost -> "Lost at the laundry"
-                    ticketItem.returned -> "Returned"
-                    else -> "Currently at the laundry"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
 }
 
 private fun statusLabel(status: ClothingStatus): String = when (status) {

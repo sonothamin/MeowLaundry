@@ -61,6 +61,22 @@ data class ClothingItem(
     val currency: String = "USD",
 )
 
+/**
+ * One time a garment went to the laundry, flattened with the ticket it belonged to so the article
+ * screen can build "last washed / last pressed" and its activity feed without extra lookups.
+ */
+data class ItemCareEvent(
+    val ticketItemId: Long,
+    val ticketId: Long,
+    val serviceType: ServiceType,
+    val providerName: String?,
+    val sentAt: Long,
+    val returnedAt: Long?,
+    val returned: Boolean,
+    val lost: Boolean,
+    val ticketStatus: TicketStatus,
+)
+
 /** Sum of prices for one currency; used so values in different currencies are never added together. */
 data class CurrencyAmount(val currency: String, val total: Double)
 

@@ -6,7 +6,7 @@ import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingItemPhoto
-import com.sonothamin.meowlaundry.data.LaundryTicketItem
+import com.sonothamin.meowlaundry.data.ItemCareEvent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +16,8 @@ import kotlinx.coroutines.launch
 
 data class ArticleViewUiState(
     val item: ClothingItem? = null,
-    val history: List<LaundryTicketItem> = emptyList(),
+    /** Every laundry trip of this garment, newest first. */
+    val events: List<ItemCareEvent> = emptyList(),
     val photos: List<ClothingItemPhoto> = emptyList(),
     val deleted: Boolean = false,
 )
@@ -30,11 +31,11 @@ class ArticleViewModel(
 
     val state: StateFlow<ArticleViewUiState> = combine(
         repository.observeClothingById(itemId),
-        repository.observeHistoryForItem(itemId),
+        repository.observeCareEventsForItem(itemId),
         repository.observePhotosForItem(itemId),
         deleted,
-    ) { item, history, photos, isDeleted ->
-        ArticleViewUiState(item, history, photos, isDeleted)
+    ) { item, events, photos, isDeleted ->
+        ArticleViewUiState(item, events, photos, isDeleted)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ArticleViewUiState())
 
     fun delete() {

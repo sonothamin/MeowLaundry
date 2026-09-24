@@ -153,6 +153,9 @@ class ClosetRepository(
     fun observeHistoryForItem(clothingItemId: Long): Flow<List<LaundryTicketItem>> =
         laundryDao.observeHistoryForItem(clothingItemId)
 
+    fun observeCareEventsForItem(clothingItemId: Long): Flow<List<ItemCareEvent>> =
+        laundryDao.observeCareEvents(clothingItemId)
+
     suspend fun getTicket(id: Long) = laundryDao.getTicket(id)
 
     suspend fun getGarmentsForIds(ids: List<Long>): List<ClothingItem> =

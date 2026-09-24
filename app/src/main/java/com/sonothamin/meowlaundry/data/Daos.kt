@@ -257,6 +257,20 @@ interface LaundryDao {
     )
     fun observeHistoryForItem(clothingItemId: Long): Flow<List<LaundryTicketItem>>
 
+    /** Every laundry trip of one garment, newest first. */
+    @Query(
+        """
+        SELECT lti.id AS ticketItemId, t.id AS ticketId, t.serviceType AS serviceType,
+               t.providerName AS providerName, t.sentAt AS sentAt, lti.returnedAt AS returnedAt,
+               lti.returned AS returned, lti.lost AS lost, t.status AS ticketStatus
+        FROM laundry_ticket_items lti
+        INNER JOIN laundry_tickets t ON t.id = lti.ticketId
+        WHERE lti.clothingItemId = :clothingItemId
+        ORDER BY t.sentAt DESC
+        """
+    )
+    fun observeCareEvents(clothingItemId: Long): Flow<List<ItemCareEvent>>
+
     @Transaction
     suspend fun createTicketWithItems(ticket: LaundryTicket, clothingItemIds: List<Long>, clothingDao: ClothingDao): Long {
         val ticketId = insertTicket(ticket)
