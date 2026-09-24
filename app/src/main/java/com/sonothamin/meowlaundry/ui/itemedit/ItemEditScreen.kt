@@ -79,9 +79,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.Currencies
-import com.sonothamin.meowlaundry.ui.components.ColorField
+import com.sonothamin.meowlaundry.ui.components.GroupedField
+import com.sonothamin.meowlaundry.ui.components.SuggestionFieldGroup
 import com.sonothamin.meowlaundry.ui.components.CurrencyDropdown
-import com.sonothamin.meowlaundry.ui.components.SuggestionTextField
 import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import kotlinx.coroutines.launch
@@ -197,29 +197,32 @@ fun ItemEditScreen(
                 onSetPrimary = viewModel::setPrimaryPhoto,
             )
 
-            SuggestionTextField(
-                value = state.garmentType,
-                onValueChange = viewModel::onGarmentTypeChange,
-                label = "Garment type",
-                placeholder = "e.g. Oxford shirt",
-                suggestions = garmentTypeSuggestions,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            SuggestionTextField(
-                value = state.brand,
-                onValueChange = viewModel::onBrandChange,
-                label = "Brand (optional)",
-                placeholder = "e.g. Uniqlo",
-                suggestions = brandSuggestions,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            ColorField(
-                value = state.color,
-                onValueChange = viewModel::onColorChange,
-                suggestions = colorSuggestions,
-                modifier = Modifier.fillMaxWidth(),
+            // Brand, color and type sit in one grouped row - they're the three inputs the title is built from.
+            SuggestionFieldGroup(
+                fields = listOf(
+                    GroupedField(
+                        value = state.brand,
+                        onValueChange = viewModel::onBrandChange,
+                        label = "Brand",
+                        placeholder = "Uniqlo",
+                        suggestions = brandSuggestions,
+                    ),
+                    GroupedField(
+                        value = state.color,
+                        onValueChange = viewModel::onColorChange,
+                        label = "Color",
+                        placeholder = "Navy",
+                        suggestions = colorSuggestions,
+                        showColorDot = true,
+                    ),
+                    GroupedField(
+                        value = state.garmentType,
+                        onValueChange = viewModel::onGarmentTypeChange,
+                        label = "Type",
+                        placeholder = "Shirt",
+                        suggestions = garmentTypeSuggestions,
+                    ),
+                ),
             )
 
             OutlinedTextField(

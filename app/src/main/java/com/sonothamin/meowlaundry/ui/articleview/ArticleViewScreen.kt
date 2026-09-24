@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Delete
@@ -37,7 +38,9 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalLaundryService
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -70,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -261,20 +265,22 @@ fun ArticleViewScreen(
                     InfoBlock(
                         rows = listOf(
                             listOf(
-                                InfoCell("Status", statusLabel(item.status), valueColor = statusColor(item.status)),
-                                dateCell("Last washed", care.lastWashedAt),
-                                dateCell("Last pressed", care.lastPressedAt),
+                                InfoCell("Status", statusLabel(item.status), statusIcon(item.status), valueColor = statusColor(item.status)),
+                                dateCell("Last washed", Icons.Default.LocalLaundryService, care.lastWashedAt),
+                                dateCell("Last pressed", Icons.Default.AutoAwesome, care.lastPressedAt),
                             ),
                             listOf(
-                                dateCell("Added", item.createdAt, neverLabel = "—"),
+                                dateCell("Added", Icons.Default.CalendarToday, item.createdAt, neverLabel = "—"),
                                 InfoCell(
                                     "Laundry trips",
                                     care.timesSent.toString(),
+                                    Icons.Default.Repeat,
                                     sub = if (care.timesSent == 1) "time" else "times",
                                 ),
                                 InfoCell(
                                     "Value",
                                     item.price?.let { Currencies.format(it, item.currency) } ?: "—",
+                                    Icons.Default.Sell,
                                     sub = if (item.price != null) "to replace" else null,
                                 ),
                             ),
@@ -421,16 +427,17 @@ fun ArticleViewScreen(
 private data class InfoCell(
     val label: String,
     val value: String,
+    val icon: ImageVector,
     val sub: String? = null,
     val valueColor: Color? = null,
 )
 
 /** "3 days ago" under the date, or [neverLabel] when there is no date yet. */
-private fun dateCell(label: String, at: Long?, neverLabel: String = "Never"): InfoCell {
-    if (at == null) return InfoCell(label, neverLabel)
+private fun dateCell(label: String, icon: ImageVector, at: Long?, neverLabel: String = "Never"): InfoCell {
+    if (at == null) return InfoCell(label, neverLabel, icon)
     val date = SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(at))
     val relative = DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS).toString()
-    return InfoCell(label, date, sub = relative)
+    return InfoCell(label, date, icon, sub = relative)
 }
 
 /** One rounded surface split into equal segments (dividers between), like the closet summary. */
@@ -450,12 +457,25 @@ private fun InfoBlock(rows: List<List<InfoCell>>) {
                             modifier = Modifier.weight(1f).padding(horizontal = Spacing.sm, vertical = Spacing.md),
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            Text(
-                                cell.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
+                            // Icon + label, with extra breathing room before the value below.
+                            Row(
+                                modifier = Modifier.padding(bottom = Spacing.xs),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            ) {
+                                Icon(
+                                    imageVector = cell.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Text(
+                                    cell.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                            }
                             Text(
                                 cell.value,
                                 style = MaterialTheme.typography.titleSmall,
@@ -603,4 +623,12 @@ private fun statusColor(status: ClothingStatus) = when (status) {
     ClothingStatus.AT_LAUNDRY -> MaterialTheme.colorScheme.tertiary
     ClothingStatus.LOST -> MaterialTheme.colorScheme.error
     ClothingStatus.ARCHIVED -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+/** Icon that mirrors the status shown in the info grid. */
+private fun statusIcon(status: ClothingStatus): ImageVector = when (status) {
+    ClothingStatus.IN_CLOSET -> Icons.Default.Checkroom
+    ClothingStatus.AT_LAUNDRY -> Icons.Default.LocalLaundryService
+    ClothingStatus.LOST -> Icons.Default.ReportProblem
+    ClothingStatus.ARCHIVED -> Icons.Default.Inventory2
 }

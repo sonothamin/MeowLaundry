@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -35,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.roundToInt
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
 import com.sonothamin.meowlaundry.data.ThemeMode
@@ -71,7 +73,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     var host by remember(printSettings.host) { mutableStateOf(printSettings.host) }
     var port by remember(printSettings.port) { mutableStateOf(printSettings.port.toString()) }
     var token by remember(printSettings.token) { mutableStateOf(printSettings.token) }
-    var darkness by remember(printSettings.darkness) { mutableStateOf(printSettings.darkness.toString()) }
+    var darkness by remember(printSettings.darkness) { mutableStateOf(printSettings.darkness.toFloat()) }
     var useToken by remember(printSettings.token) { mutableStateOf(printSettings.token.isNotBlank()) }
     var printMethod by remember(printSettings.printMethod) { mutableStateOf(printSettings.printMethod) }
 
@@ -119,43 +121,57 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            OutlinedTextField(
-                value = host,
-                onValueChange = { host = it },
-                label = { Text("Host / IP address") },
-                placeholder = { Text("192.168.1.20") },
-                singleLine = true,
-                enabled = printMethod == PrintMethod.NETWORK,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = port,
-                onValueChange = { port = it.filter(Char::isDigit) },
-                label = { Text("Port") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Switch(checked = useToken, onCheckedChange = { useToken = it })
-                Text("Require access token", modifier = Modifier.padding(start = Spacing.sm))
-            }
-            if (useToken) {
+            // Host, port and token only matter when talking to MeowSpool over the network.
+            if (printMethod == PrintMethod.NETWORK) {
                 OutlinedTextField(
-                    value = token,
-                    onValueChange = { token = it },
-                    label = { Text("Access token") },
+                    value = host,
+                    onValueChange = { host = it },
+                    label = { Text("Host / IP address") },
+                    placeholder = { Text("192.168.1.20") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                OutlinedTextField(
+                    value = port,
+                    onValueChange = { port = it.filter(Char::isDigit) },
+                    label = { Text("Port") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Switch(checked = useToken, onCheckedChange = { useToken = it })
+                    Text("Require access token", modifier = Modifier.padding(start = Spacing.sm))
+                }
+                if (useToken) {
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = { Text("Access token") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
-            OutlinedTextField(
-                value = darkness,
-                onValueChange = { darkness = it.filter(Char::isDigit) },
-                label = { Text("Print darkness (0-100)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text("Print darkness", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    Text(
+                        "${darkness.roundToInt()}%",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Slider(
+                    value = darkness,
+                    onValueChange = { darkness = it },
+                    valueRange = 0f..100f,
+                )
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Button(
@@ -165,19 +181,23 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                                 host = host.trim(),
                                 port = port.toIntOrNull() ?: 8631,
                                 token = if (useToken) token.trim() else "",
-                                darkness = darkness.toIntOrNull() ?: 70,
+                                darkness = darkness.roundToInt().coerceIn(0, 100),
                                 dither = "sharp",
                                 printMethod = printMethod,
                             )
                         )
                     },
                 ) { Text("Save") }
-                OutlinedButton(onClick = viewModel::testConnection, enabled = !uiState.isTestingConnection) {
-                    Text(if (uiState.isTestingConnection) "Testing…" else "Test connection")
+                if (printMethod == PrintMethod.NETWORK) {
+                    OutlinedButton(onClick = viewModel::testConnection, enabled = !uiState.isTestingConnection) {
+                        Text(if (uiState.isTestingConnection) "Testing…" else "Test connection")
+                    }
                 }
             }
-            uiState.connectionStatus?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall)
+            if (printMethod == PrintMethod.NETWORK) {
+                uiState.connectionStatus?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall)
+                }
             }
 
             HorizontalDivider()

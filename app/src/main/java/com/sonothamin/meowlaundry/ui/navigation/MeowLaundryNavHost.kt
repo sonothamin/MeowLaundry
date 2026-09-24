@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -287,10 +286,13 @@ private fun BottomBar(navController: NavHostController) {
             NavigationBarItem(
                 selected = currentRoute == tab.destination.route,
                 onClick = {
+                    // Always land on the tab's main screen, never on whatever sub-page was last open
+                    // inside it (article, ticket, editor...). Closet is the root of the back stack once
+                    // onboarding is done, so pop everything above it, then open the tab fresh.
                     navController.navigate(tab.destination.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        popUpTo(Destination.Closet.route) { saveState = false }
                         launchSingleTop = true
-                        restoreState = true
+                        restoreState = false
                     }
                 },
                 icon = { Icon(tab.icon, contentDescription = tab.label) },
