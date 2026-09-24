@@ -48,6 +48,17 @@ jobs:
       - name: Assemble debug APK
         run: gradle assembleDebug --stacktrace
 
+      - name: Verify APK output
+        run: |
+          echo "Files matching the artifact glob:"
+          ls -la app/build/outputs/apk/debug/*.apk
+          echo ""
+          echo "SHA-256 (compare this against whatever you extract locally):"
+          sha256sum app/build/outputs/apk/debug/*.apk
+          echo ""
+          echo "unzip -l summary (should look like a normal APK's internal listing):"
+          unzip -l app/build/outputs/apk/debug/*.apk | tail -5
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
