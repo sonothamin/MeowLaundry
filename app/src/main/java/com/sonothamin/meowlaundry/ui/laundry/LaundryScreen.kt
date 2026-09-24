@@ -38,6 +38,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -69,6 +71,8 @@ fun LaundryScreen(
     onSendNew: () -> Unit,
     onOpenTicket: (Long) -> Unit,
     flashMessage: String? = null,
+    /** When set, the flash snackbar offers "Undo", which reopens this ticket. */
+    flashUndoTicketId: Long? = null,
     onFlashShown: () -> Unit = {},
 ) {
     val tickets by viewModel.tickets.collectAsStateWithLifecycle()
@@ -91,7 +95,16 @@ fun LaundryScreen(
     LaunchedEffect(flashMessage) {
         if (flashMessage != null) {
             onFlashShown()
-            scope.launch { snackbarHostState.showSnackbar(flashMessage) }
+            val undoId = flashUndoTicketId
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = flashMessage,
+                    actionLabel = if (undoId != null) "Undo" else null,
+                    withDismissAction = undoId == null,
+                    duration = if (undoId != null) SnackbarDuration.Long else SnackbarDuration.Short,
+                )
+                if (result == SnackbarResult.ActionPerformed && undoId != null) viewModel.reopenTicket(undoId)
+            }
         }
     }
 

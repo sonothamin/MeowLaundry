@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
 import com.sonothamin.meowlaundry.data.ThemeMode
+import com.sonothamin.meowlaundry.ui.components.CurrencyDropdown
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -48,6 +49,7 @@ import java.util.Locale
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val printSettings by viewModel.printSettings.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val defaultCurrency by viewModel.defaultCurrency.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -199,6 +201,21 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     )
                 }
             }
+
+            HorizontalDivider()
+
+            Text("Default currency", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Pre-selected for the price of new articles. You can still change it per article.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            CurrencyDropdown(
+                selected = defaultCurrency,
+                onSelect = viewModel::setDefaultCurrency,
+                label = "Currency",
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             HorizontalDivider()
 

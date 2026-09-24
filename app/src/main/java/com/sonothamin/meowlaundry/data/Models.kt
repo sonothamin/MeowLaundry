@@ -52,7 +52,17 @@ data class ClothingItem(
     val archiveReason: ArchiveReason? = null,
     val archivedAt: Long? = null,
     val archiveNotes: String? = null,
+    /** Free-text brand, e.g. "Uniqlo". Feeds the generated [title] and brand suggestions. */
+    val brand: String? = null,
+    /** Specific kind of garment, e.g. "Oxford shirt". [type] stays the broad category used for filtering. */
+    val garmentType: String? = null,
+    val color: String? = null,
+    /** ISO 4217 code that [price] is expressed in, e.g. "USD". */
+    val currency: String = "USD",
 )
+
+/** Sum of prices for one currency; used so values in different currencies are never added together. */
+data class CurrencyAmount(val currency: String, val total: Double)
 
 /**
  * One of possibly several photos of a garment. [isPrimary] marks the one shown in the
@@ -156,6 +166,11 @@ data class BackupClothingItem(
     val archivedAt: Long? = null,
     val archiveNotes: String? = null,
     val photos: List<BackupPhoto> = emptyList(),
+    // Added in DB v3; defaults keep older backups importable.
+    val brand: String? = null,
+    val garmentType: String? = null,
+    val color: String? = null,
+    val currency: String = "USD",
 )
 
 @Serializable

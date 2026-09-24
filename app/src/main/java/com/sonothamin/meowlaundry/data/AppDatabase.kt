@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ClothingItem::class, LaundryTicket::class, LaundryTicketItem::class, ClothingItemPhoto::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -57,13 +57,26 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds brand / garment type / colour and the price currency. Existing rows keep working:
+         * the three text columns are simply null and the currency defaults to USD.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE clothing_items ADD COLUMN brand TEXT")
+                db.execSQL("ALTER TABLE clothing_items ADD COLUMN garmentType TEXT")
+                db.execSQL("ALTER TABLE clothing_items ADD COLUMN color TEXT")
+                db.execSQL("ALTER TABLE clothing_items ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'")
+            }
+        }
+
         @Volatile
         private var instance: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

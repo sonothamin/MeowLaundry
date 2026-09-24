@@ -36,6 +36,13 @@ class SettingsViewModel(
     val themeMode: StateFlow<ThemeMode> = appPreferences.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.SYSTEM)
 
+    val defaultCurrency: StateFlow<String> = appPreferences.defaultCurrency
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.sonothamin.meowlaundry.data.Currencies.deviceDefault())
+
+    fun setDefaultCurrency(code: String) {
+        viewModelScope.launch { appPreferences.setDefaultCurrency(code) }
+    }
+
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState
 

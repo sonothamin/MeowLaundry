@@ -73,7 +73,15 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import com.sonothamin.meowlaundry.data.ClothingType
+import com.sonothamin.meowlaundry.data.Currencies
+import com.sonothamin.meowlaundry.ui.components.ColorField
+import com.sonothamin.meowlaundry.ui.components.CurrencyDropdown
+import com.sonothamin.meowlaundry.ui.components.SuggestionTextField
 import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import kotlinx.coroutines.launch
@@ -86,6 +94,9 @@ fun ItemEditScreen(
     onDone: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val brandSuggestions by viewModel.brandSuggestions.collectAsStateWithLifecycle()
+    val garmentTypeSuggestions by viewModel.garmentTypeSuggestions.collectAsStateWithLifecycle()
+    val colorSuggestions by viewModel.colorSuggestions.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -186,25 +197,73 @@ fun ItemEditScreen(
                 onSetPrimary = viewModel::setPrimaryPhoto,
             )
 
+            SuggestionTextField(
+                value = state.garmentType,
+                onValueChange = viewModel::onGarmentTypeChange,
+                label = "Garment type",
+                placeholder = "e.g. Oxford shirt",
+                suggestions = garmentTypeSuggestions,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            SuggestionTextField(
+                value = state.brand,
+                onValueChange = viewModel::onBrandChange,
+                label = "Brand (optional)",
+                placeholder = "e.g. Uniqlo",
+                suggestions = brandSuggestions,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            ColorField(
+                value = state.color,
+                onValueChange = viewModel::onColorChange,
+                suggestions = colorSuggestions,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
             OutlinedTextField(
                 value = state.title,
                 onValueChange = viewModel::onTitleChange,
                 label = { Text("Title") },
-                placeholder = { Text("e.g. Blue oxford shirt") },
+                placeholder = { Text("Built from brand, color and type") },
+                supportingText = {
+                    Text(
+                        if (state.titleCustomized) "Custom title. Tap the wand to use the generated one."
+                        else "Generated from the fields above. Edit it to write your own."
+                    )
+                },
+                trailingIcon = {
+                    if (state.titleCustomized && state.generatedTitle.isNotBlank()) {
+                        IconButton(onClick = viewModel::resetTitleToGenerated) {
+                            Icon(Icons.Default.AutoFixHigh, contentDescription = "Use generated title")
+                        }
+                    }
+                },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth(),
             )
 
             TypeDropdown(selected = state.type, onSelect = viewModel::onTypeChange)
 
-            OutlinedTextField(
-                value = state.priceText,
-                onValueChange = viewModel::onPriceChange,
-                label = { Text("Replacement price (optional)") },
-                placeholder = { Text("What it costs to replace, if lost") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.Top) {
+                CurrencyDropdown(
+                    selected = state.currency,
+                    onSelect = viewModel::onCurrencyChange,
+                    compact = true,
+                    modifier = Modifier.width(128.dp),
+                )
+                OutlinedTextField(
+                    value = state.priceText,
+                    onValueChange = viewModel::onPriceChange,
+                    label = { Text("Replacement price (optional)") },
+                    prefix = { Text(Currencies.symbol(state.currency)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.weight(1f),
+                )
+            }
 
             OutlinedTextField(
                 value = state.notes,
@@ -370,7 +429,7 @@ private fun TypeDropdown(selected: ClothingType, onSelect: (ClothingType) -> Uni
             value = selected.name.lowercase().replaceFirstChar { it.uppercase() },
             onValueChange = {},
             readOnly = true,
-            label = { Text("Type") },
+            label = { Text("Category") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
         )

@@ -57,6 +57,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClosetViewMode
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.export.ExportUtils
+import com.sonothamin.meowlaundry.data.CurrencyAmount
+import com.sonothamin.meowlaundry.data.Currencies
 import com.sonothamin.meowlaundry.ui.components.ClothingCard
 import com.sonothamin.meowlaundry.ui.components.ClothingListRow
 import com.sonothamin.meowlaundry.ui.components.EmptyState
@@ -184,7 +186,7 @@ fun ClosetScreen(
                     inCloset = summary.inClosetCount,
                     atLaundry = summary.atLaundryCount,
                     lost = summary.lostCount,
-                    lostValue = summary.lostValue,
+                    lostValues = summary.lostValues,
                 )
                 FilterRow(selected = filter, onSelect = viewModel::setFilter)
             }
@@ -253,7 +255,7 @@ fun ClosetScreen(
 }
 
 @Composable
-private fun SummaryRow(inCloset: Int, atLaundry: Int, lost: Int, lostValue: Double) {
+private fun SummaryRow(inCloset: Int, atLaundry: Int, lost: Int, lostValues: List<CurrencyAmount>) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -262,7 +264,10 @@ private fun SummaryRow(inCloset: Int, atLaundry: Int, lost: Int, lostValue: Doub
         SummaryCard(label = "At laundry", value = atLaundry.toString(), modifier = Modifier.weight(1f))
         SummaryCard(
             label = "Lost",
-            value = if (lostValue > 0) "$lost · \$${"%.0f".format(lostValue)}" else lost.toString(),
+            value = lostValues.filter { it.total > 0 }.let { amounts ->
+                if (amounts.isEmpty()) lost.toString()
+                else "$lost · " + amounts.joinToString(" + ") { Currencies.format(it.total, it.currency) }
+            },
             modifier = Modifier.weight(1f),
         )
     }

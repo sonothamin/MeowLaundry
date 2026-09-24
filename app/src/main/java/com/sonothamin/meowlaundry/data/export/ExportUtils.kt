@@ -16,13 +16,17 @@ object ExportUtils {
     private val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
 
     fun clothingCsv(items: List<ClothingItem>): String {
-        val header = "Title,Type,Status,Price,Notes"
+        val header = "Title,Brand,Garment type,Color,Category,Status,Price,Currency,Notes"
         val rows = items.joinToString("\n") { item ->
             listOf(
                 item.title,
+                item.brand ?: "",
+                item.garmentType ?: "",
+                item.color ?: "",
                 item.type.name,
                 item.status.name,
                 item.price?.toString() ?: "",
+                item.currency,
                 item.notes ?: "",
             ).joinToString(",") { csvField(it) }
         }

@@ -30,19 +30,35 @@ class ClosetRepository(
         val inClosetCount: Int,
         val atLaundryCount: Int,
         val lostCount: Int,
-        val lostValue: Double,
+        /** Lost value per currency, so different currencies are never summed together. */
+        val lostValues: List<CurrencyAmount>,
     )
 
     fun observeSummary(): Flow<ClosetSummary> = combine(
         clothingDao.observeCountByStatus(ClothingStatus.IN_CLOSET),
         clothingDao.observeCountByStatus(ClothingStatus.AT_LAUNDRY),
         clothingDao.observeCountByStatus(ClothingStatus.LOST),
-        clothingDao.observeValueByStatus(ClothingStatus.LOST),
-    ) { inCloset, atLaundry, lost, lostValue ->
-        ClosetSummary(inCloset, atLaundry, lost, lostValue)
+        clothingDao.observeValueByStatusAndCurrency(ClothingStatus.LOST),
+    ) { inCloset, atLaundry, lost, lostValues ->
+        ClosetSummary(inCloset, atLaundry, lost, lostValues)
     }
 
-    suspend fun saveClothing(item: ClothingItem): Long = clothingDao.upsert(item)
+    fun observeBrandHistory(): Flow<List<String>> = clothingDao.observeBrands()
+    fun observeGarmentTypeHistory(): Flow<List<String>> = clothingDao.observeGarmentTypes()
+    fun observeColorHistory(): Flow<List<String>> = clothingDao.observeColors()
+
+    /**
+     * Inserts a new garment or updates an existing one. Existing rows are updated in place:
+     * the upsert used for inserts is INSERT OR REPLACE, which deletes the old row first and so
+     * would cascade-delete the item's photos and laundry history on every edit.
+     */
+    suspend fun saveClothing(item: ClothingItem): Long =
+        if (item.id != 0L) {
+            clothingDao.update(item)
+            item.id
+        } else {
+            clothingDao.upsert(item)
+        }
 
     suspend fun deleteClothing(item: ClothingItem) {
         photoDao.getForItem(item.id).forEach { photoStore.delete(it.path) }
@@ -189,6 +205,23 @@ class ClosetRepository(
         laundryDao.updateTicket(ticket.copy(status = TicketStatus.CLOSED))
     }
 
+    /**
+     * Undoes [closeTicket]: puts the ticket back to the state its garments imply
+     * (all accounted for -> RECEIVED, some -> PARTIALLY_RECEIVED, none -> SENT).
+     */
+    suspend fun reopenTicket(ticketId: Long) {
+        val ticket = laundryDao.getTicket(ticketId) ?: return
+        if (ticket.status != TicketStatus.CLOSED) return
+        val items = laundryDao.getItemsForTicket(ticketId)
+        val decided = items.count { it.returned || it.lost }
+        val status = when {
+            decided == items.size -> TicketStatus.RECEIVED
+            decided > 0 -> TicketStatus.PARTIALLY_RECEIVED
+            else -> TicketStatus.SENT
+        }
+        laundryDao.updateTicket(ticket.copy(status = status))
+    }
+
     suspend fun deleteTicket(ticket: LaundryTicket) = laundryDao.deleteTicket(ticket)
 
     suspend fun deleteTicketsByIds(ids: List<Long>) {
@@ -233,6 +266,10 @@ class ClosetRepository(
                     archiveReason = it.archiveReason?.name,
                     archivedAt = it.archivedAt,
                     archiveNotes = it.archiveNotes,
+                    brand = it.brand,
+                    garmentType = it.garmentType,
+                    color = it.color,
+                    currency = it.currency,
                     photos = photosByItem[it.id].orEmpty().map { photo ->
                         BackupPhoto(path = photo.path, isPrimary = photo.isPrimary, sortOrder = photo.sortOrder)
                     },
@@ -284,6 +321,10 @@ class ClosetRepository(
                     archiveReason = it.archiveReason?.let { r -> runCatching { ArchiveReason.valueOf(r) }.getOrNull() },
                     archivedAt = it.archivedAt,
                     archiveNotes = it.archiveNotes,
+                    brand = it.brand,
+                    garmentType = it.garmentType,
+                    color = it.color,
+                    currency = it.currency,
                 )
             }
         )

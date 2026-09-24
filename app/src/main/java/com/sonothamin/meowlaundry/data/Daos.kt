@@ -32,6 +32,27 @@ interface ClothingDao {
     @Query("SELECT COALESCE(SUM(price), 0.0) FROM clothing_items WHERE status = :status")
     fun observeValueByStatus(status: ClothingStatus): Flow<Double>
 
+    @Query(
+        """
+        SELECT currency AS currency, COALESCE(SUM(price), 0.0) AS total
+        FROM clothing_items
+        WHERE status = :status AND price IS NOT NULL
+        GROUP BY currency
+        ORDER BY total DESC
+        """
+    )
+    fun observeValueByStatusAndCurrency(status: ClothingStatus): Flow<List<CurrencyAmount>>
+
+    // Suggestions from previous entries, most used first (case-insensitive).
+    @Query("SELECT brand FROM clothing_items WHERE brand IS NOT NULL AND TRIM(brand) != '' GROUP BY LOWER(brand) ORDER BY COUNT(*) DESC, brand COLLATE NOCASE")
+    fun observeBrands(): Flow<List<String>>
+
+    @Query("SELECT garmentType FROM clothing_items WHERE garmentType IS NOT NULL AND TRIM(garmentType) != '' GROUP BY LOWER(garmentType) ORDER BY COUNT(*) DESC, garmentType COLLATE NOCASE")
+    fun observeGarmentTypes(): Flow<List<String>>
+
+    @Query("SELECT color FROM clothing_items WHERE color IS NOT NULL AND TRIM(color) != '' GROUP BY LOWER(color) ORDER BY COUNT(*) DESC, color COLLATE NOCASE")
+    fun observeColors(): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: ClothingItem): Long
 

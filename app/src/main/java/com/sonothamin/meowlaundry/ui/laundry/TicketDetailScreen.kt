@@ -129,7 +129,14 @@ fun TicketDetailScreen(
                 }
             }
 
-            if (ticket.status != TicketStatus.CLOSED) {
+            if (ticket.status == TicketStatus.CLOSED) {
+                OutlinedButton(
+                    onClick = viewModel::reopenTicket,
+                    modifier = Modifier.fillMaxWidth().padding(Spacing.md),
+                ) {
+                    Text("Reopen ticket")
+                }
+            } else {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(Spacing.md),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),

@@ -97,6 +97,15 @@ class TicketDetailViewModel(
         }
     }
 
+    /** Undoes a close: the ticket goes back to being editable and can be closed again later. */
+    fun reopenTicket() {
+        viewModelScope.launch {
+            repository.reopenTicket(ticketId)
+            closing = false
+            _events.emit(TicketDetailEvent.Message("Ticket reopened"))
+        }
+    }
+
     /** Renders the label and shows it in a preview dialog, without sending it anywhere. */
     fun previewTicket() {
         viewModelScope.launch {

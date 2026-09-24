@@ -23,6 +23,16 @@ class AppPreferences(private val context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val CLOSET_VIEW_MODE = stringPreferencesKey("closet_view_mode")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        val DEFAULT_CURRENCY = stringPreferencesKey("default_currency")
+    }
+
+    /** Currency pre-selected for new articles. Falls back to the device's regional currency. */
+    val defaultCurrency: Flow<String> = context.appDataStore.data.map { prefs ->
+        prefs[Keys.DEFAULT_CURRENCY] ?: Currencies.deviceDefault()
+    }
+
+    suspend fun setDefaultCurrency(code: String) {
+        context.appDataStore.edit { it[Keys.DEFAULT_CURRENCY] = code }
     }
 
     val themeMode: Flow<ThemeMode> = context.appDataStore.data.map { prefs ->

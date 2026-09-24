@@ -55,14 +55,17 @@ class ClosetViewModel(
 
     val items: StateFlow<List<ClothingItem>> = combine(allItemsForFilter, _searchQuery) { list, query ->
         if (query.isBlank()) list
-        else list.filter { it.title.contains(query, ignoreCase = true) || it.type.name.contains(query, ignoreCase = true) }
+        else list.filter { item ->
+            listOf(item.title, item.brand, item.color, item.garmentType, item.type.name)
+                .any { it?.contains(query, ignoreCase = true) == true }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val summary: StateFlow<ClosetRepository.ClosetSummary> = repository.observeSummary()
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
-            ClosetRepository.ClosetSummary(0, 0, 0, 0.0),
+            ClosetRepository.ClosetSummary(0, 0, 0, emptyList()),
         )
 
     fun setFilter(status: ClothingStatus?) {

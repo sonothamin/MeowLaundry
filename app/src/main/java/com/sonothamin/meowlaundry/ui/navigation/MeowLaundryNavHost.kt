@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
 /** savedStateHandle keys used to hand a result back to the screen underneath. */
 private const val KEY_ORDER_CREATED = "laundry_order_created"
 private const val KEY_FLASH_MESSAGE = "flash_message"
+private const val KEY_FLASH_UNDO_TICKET = "flash_undo_ticket_id"
 
 private const val FADE_IN_MS = 320
 private const val FADE_OUT_MS = 200
@@ -164,7 +165,7 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
 
             composable(Destination.ItemEditNew.route) {
                 val vm: ItemEditViewModel = viewModel(
-                    factory = LambdaViewModelFactory { ItemEditViewModel(app.repository, app.photoStore, null) },
+                    factory = LambdaViewModelFactory { ItemEditViewModel(app.repository, app.photoStore, app.appPreferences, null) },
                 )
                 ItemEditScreen(viewModel = vm, photoStore = app.photoStore, onDone = { navController.popBackStack() })
             }
@@ -175,7 +176,7 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
             ) { backStackEntry ->
                 val itemId = backStackEntry.arguments?.getLong("itemId")
                 val vm: ItemEditViewModel = viewModel(
-                    factory = LambdaViewModelFactory { ItemEditViewModel(app.repository, app.photoStore, itemId) },
+                    factory = LambdaViewModelFactory { ItemEditViewModel(app.repository, app.photoStore, app.appPreferences, itemId) },
                 )
                 ItemEditScreen(viewModel = vm, photoStore = app.photoStore, onDone = { navController.popBackStack() })
             }
@@ -187,9 +188,16 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                 val flash by entry.savedStateHandle
                     .getStateFlow<String?>(KEY_FLASH_MESSAGE, null)
                     .collectAsStateWithLifecycle()
+                val undoTicketId by entry.savedStateHandle
+                    .getStateFlow<Long?>(KEY_FLASH_UNDO_TICKET, null)
+                    .collectAsStateWithLifecycle()
                 LaundryScreen(
                     flashMessage = flash,
-                    onFlashShown = { entry.savedStateHandle[KEY_FLASH_MESSAGE] = null },
+                    flashUndoTicketId = undoTicketId,
+                    onFlashShown = {
+                        entry.savedStateHandle[KEY_FLASH_MESSAGE] = null
+                        entry.savedStateHandle[KEY_FLASH_UNDO_TICKET] = null
+                    },
                     viewModel = vm,
                     onSendNew = { navController.navigate(Destination.SendToLaundry.route()) },
                     onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) },
@@ -239,8 +247,10 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                     // A closed ticket has nothing left to do, so leave for the previous page and
                     // confirm there with a snackbar rather than stranding the user on a dead screen.
                     onClosed = {
-                        navController.previousBackStackEntry?.savedStateHandle
-                            ?.set(KEY_FLASH_MESSAGE, "Ticket #$ticketId closed")
+                        navController.previousBackStackEntry?.savedStateHandle?.let {
+                            it[KEY_FLASH_UNDO_TICKET] = ticketId // set first so the message never shows without it
+                            it[KEY_FLASH_MESSAGE] = "Ticket #$ticketId closed"
+                        }
                         navController.popBackStack()
                     },
                 )

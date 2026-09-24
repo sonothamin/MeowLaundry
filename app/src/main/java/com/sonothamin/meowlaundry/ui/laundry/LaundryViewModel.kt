@@ -96,6 +96,14 @@ class LaundryViewModel(
         }
     }
 
+    /** Used by the "Undo" on the "Ticket closed" snackbar. */
+    fun reopenTicket(ticketId: Long) {
+        viewModelScope.launch {
+            repository.reopenTicket(ticketId)
+            _events.emit(LaundryEvent.Message("Ticket #$ticketId reopened"))
+        }
+    }
+
     fun shareSelected() {
         viewModelScope.launch {
             val selected = repository.getTicketsByIds(_selectedIds.value.toList())

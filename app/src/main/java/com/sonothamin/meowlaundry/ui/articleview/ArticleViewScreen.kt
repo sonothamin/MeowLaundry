@@ -260,8 +260,18 @@ fun ArticleViewScreen(
 
                         if (detailsExpanded) {
                             HorizontalDetailDivider()
+                            listOf(
+                                "Garment type" to item.garmentType,
+                                "Brand" to item.brand,
+                                "Color" to item.color,
+                            ).forEach { (label, value) ->
+                                if (!value.isNullOrBlank()) {
+                                    DetailRow(label, value)
+                                    HorizontalDetailDivider()
+                                }
+                            }
                             item.price?.let {
-                                DetailRow("Replacement price", "$${"%.0f".format(it)}")
+                                DetailRow("Replacement price", com.sonothamin.meowlaundry.data.Currencies.format(it, item.currency))
                                 HorizontalDetailDivider()
                             }
                             DetailRow("Photos", if (state.photos.isEmpty()) "None" else "${state.photos.size}")
