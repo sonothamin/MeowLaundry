@@ -7,6 +7,7 @@ import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.LaundryTicketItem
+import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.print.LabelRenderer
 import com.sonothamin.meowlaundry.print.PrintDispatcher
 import com.sonothamin.meowlaundry.print.PrintOutcome
@@ -28,16 +29,41 @@ sealed class TicketDetailEvent {
     data object Closed : TicketDetailEvent()
 }
 
+/** Where one garment stands on a ticket. PENDING = still out at the laundry. */
+enum class ItemDecision { PENDING, RETURNED, LOST }
+
 data class TicketDetailUiState(
     val ticket: LaundryTicket? = null,
     val garments: List<ClothingItem> = emptyList(),
     val ticketItems: List<LaundryTicketItem> = emptyList(),
-    /** Pending decisions for garments not yet marked returned/lost, keyed by clothing item id. */
-    val pendingReturned: Set<Long> = emptySet(),
-    val pendingLost: Set<Long> = emptySet(),
+    /** Unsaved changes only: garment id -> the decision the user picked, which differs from what's saved. */
+    val edits: Map<Long, ItemDecision> = emptyMap(),
     val isPrinting: Boolean = false,
     val previewBitmap: Bitmap? = null,
-)
+) {
+    fun savedDecision(garmentId: Long): ItemDecision {
+        val item = ticketItems.find { it.clothingItemId == garmentId } ?: return ItemDecision.PENDING
+        return when {
+            item.returned -> ItemDecision.RETURNED
+            item.lost -> ItemDecision.LOST
+            else -> ItemDecision.PENDING
+        }
+    }
+
+    /** What the row shows: the unsaved pick if there is one, otherwise what's saved. */
+    fun decisionFor(garmentId: Long): ItemDecision = edits[garmentId] ?: savedDecision(garmentId)
+
+    val hasChanges: Boolean get() = edits.isNotEmpty()
+
+    /** True when, after the current picks are saved, nothing is left out at the laundry. */
+    val allAccountedFor: Boolean
+        get() = garments.isNotEmpty() && garments.all { decisionFor(it.id) != ItemDecision.PENDING }
+
+    val isClosed: Boolean get() = ticket?.status == TicketStatus.CLOSED
+
+    /** Save is offered when something changed, or when everything is back but the ticket is still open. */
+    val canSave: Boolean get() = !isClosed && (hasChanges || allAccountedFor)
+}
 
 class TicketDetailViewModel(
     private val repository: ClosetRepository,
@@ -45,8 +71,7 @@ class TicketDetailViewModel(
     private val ticketId: Long,
 ) : ViewModel() {
 
-    private val pendingReturned = MutableStateFlow<Set<Long>>(emptySet())
-    private val pendingLost = MutableStateFlow<Set<Long>>(emptySet())
+    private val edits = MutableStateFlow<Map<Long, ItemDecision>>(emptyMap())
     private val isPrinting = MutableStateFlow(false)
     private val previewBitmap = MutableStateFlow<Bitmap?>(null)
 
@@ -57,43 +82,52 @@ class TicketDetailViewModel(
         repository.observeTicket(ticketId),
         repository.observeGarmentsForTicket(ticketId),
         repository.observeItemsForTicket(ticketId),
-        pendingReturned,
-        pendingLost,
-    ) { ticket, garments, ticketItems, returned, lost ->
-        TicketDetailUiState(ticket, garments, ticketItems, returned, lost)
+        edits,
+    ) { ticket, garments, ticketItems, edits ->
+        TicketDetailUiState(ticket, garments, ticketItems, edits)
     }.combine(isPrinting) { s, printing -> s.copy(isPrinting = printing) }
         .combine(previewBitmap) { s, preview -> s.copy(previewBitmap = preview) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TicketDetailUiState())
 
-    fun togglePendingReturned(clothingItemId: Long) {
-        pendingReturned.value = pendingReturned.value.let { if (clothingItemId in it) it - clothingItemId else it + clothingItemId }
-        pendingLost.value = pendingLost.value - clothingItemId
-    }
-
-    fun togglePendingLost(clothingItemId: Long) {
-        pendingLost.value = pendingLost.value.let { if (clothingItemId in it) it - clothingItemId else it + clothingItemId }
-        pendingReturned.value = pendingReturned.value - clothingItemId
-    }
-
-    fun confirmDecisions() {
-        val returned = pendingReturned.value
-        val lost = pendingLost.value
-        if (returned.isEmpty() && lost.isEmpty()) return
-        viewModelScope.launch {
-            repository.resolveTicket(ticketId, returned, lost)
-            pendingReturned.value = emptySet()
-            pendingLost.value = emptySet()
+    /** Picks a decision for one garment. Picking what's already saved simply clears the unsaved change. */
+    fun setDecision(garmentId: Long, decision: ItemDecision) {
+        val current = state.value
+        if (current.isClosed) return
+        edits.value = edits.value.toMutableMap().also {
+            if (decision == current.savedDecision(garmentId)) it.remove(garmentId) else it[garmentId] = decision
         }
     }
 
-    private var closing = false
+    private var busy = false
 
-    fun closeTicket() {
-        if (closing) return // ignore double taps while the close is in flight
-        closing = true
+    /**
+     * Saves the picks. If that leaves nothing out at the laundry the ticket is closed in the same step,
+     * so "save" and "close" are one action. (Closing can be undone: reopen it, and any garment's
+     * decision can be changed again.)
+     */
+    fun save() {
+        val current = state.value
+        if (busy || !current.canSave) return
+        busy = true
+        val picked = edits.value
+        val closesTicket = current.allAccountedFor
         viewModelScope.launch {
-            repository.closeTicket(ticketId)
-            _events.emit(TicketDetailEvent.Closed)
+            if (picked.isNotEmpty()) {
+                repository.resolveTicket(
+                    ticketId = ticketId,
+                    returnedItemIds = picked.filterValues { it == ItemDecision.RETURNED }.keys,
+                    lostItemIds = picked.filterValues { it == ItemDecision.LOST }.keys,
+                    resetItemIds = picked.filterValues { it == ItemDecision.PENDING }.keys,
+                )
+                edits.value = emptyMap()
+            }
+            if (closesTicket) {
+                repository.closeTicket(ticketId)
+                _events.emit(TicketDetailEvent.Closed) // stay busy: the screen is leaving
+            } else {
+                _events.emit(TicketDetailEvent.Message("Saved"))
+                busy = false
+            }
         }
     }
 
@@ -101,7 +135,7 @@ class TicketDetailViewModel(
     fun reopenTicket() {
         viewModelScope.launch {
             repository.reopenTicket(ticketId)
-            closing = false
+            busy = false
             _events.emit(TicketDetailEvent.Message("Ticket reopened"))
         }
     }

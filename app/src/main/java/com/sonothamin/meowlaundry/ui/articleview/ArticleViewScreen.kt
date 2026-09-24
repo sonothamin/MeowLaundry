@@ -82,6 +82,8 @@ import coil.compose.AsyncImage
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.Currencies
+import com.sonothamin.meowlaundry.ui.components.InfoBlock
+import com.sonothamin.meowlaundry.ui.components.InfoCell
 import com.sonothamin.meowlaundry.ui.components.archiveReasonLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
@@ -424,78 +426,12 @@ fun ArticleViewScreen(
     }
 }
 
-private data class InfoCell(
-    val label: String,
-    val value: String,
-    val icon: ImageVector,
-    val sub: String? = null,
-    val valueColor: Color? = null,
-)
-
 /** "3 days ago" under the date, or [neverLabel] when there is no date yet. */
 private fun dateCell(label: String, icon: ImageVector, at: Long?, neverLabel: String = "Never"): InfoCell {
     if (at == null) return InfoCell(label, neverLabel, icon)
     val date = SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(at))
     val relative = DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS).toString()
     return InfoCell(label, date, icon, sub = relative)
-}
-
-/** One rounded surface split into equal segments (dividers between), like the closet summary. */
-@Composable
-private fun InfoBlock(rows: List<List<InfoCell>>) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-    ) {
-        Column {
-            rows.forEachIndexed { rowIndex, cells ->
-                if (rowIndex > 0) HorizontalDivider()
-                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-                    cells.forEachIndexed { cellIndex, cell ->
-                        if (cellIndex > 0) VerticalDivider()
-                        Column(
-                            modifier = Modifier.weight(1f).padding(horizontal = Spacing.sm, vertical = Spacing.md),
-                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            // Icon + label, with extra breathing room before the value below.
-                            Row(
-                                modifier = Modifier.padding(bottom = Spacing.xs),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                            ) {
-                                Icon(
-                                    imageVector = cell.icon,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                                Text(
-                                    cell.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                )
-                            }
-                            Text(
-                                cell.value,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = cell.valueColor ?: MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                cell.sub ?: " ",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable

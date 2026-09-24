@@ -173,13 +173,16 @@ class ClosetRepository(
         ticketId: Long,
         returnedItemIds: Set<Long>,
         lostItemIds: Set<Long>,
+        /** Garments to put back to "still out at the laundry" - this is how a saved decision is undone. */
+        resetItemIds: Set<Long> = emptySet(),
     ) {
         val items = laundryDao.getItemsForTicket(ticketId)
         val now = System.currentTimeMillis()
         val updated = items.map { item ->
             when (item.clothingItemId) {
                 in returnedItemIds -> item.copy(returned = true, lost = false, returnedAt = now)
-                in lostItemIds -> item.copy(returned = false, lost = true)
+                in lostItemIds -> item.copy(returned = false, lost = true, returnedAt = null)
+                in resetItemIds -> item.copy(returned = false, lost = false, returnedAt = null)
                 else -> item
             }
         }
@@ -187,6 +190,7 @@ class ClosetRepository(
 
         returnedItemIds.forEach { clothingDao.setStatus(it, ClothingStatus.IN_CLOSET, now) }
         lostItemIds.forEach { clothingDao.setStatus(it, ClothingStatus.LOST, now) }
+        resetItemIds.forEach { clothingDao.setStatus(it, ClothingStatus.AT_LAUNDRY, now) }
 
         val allAccountedFor = updated.all { it.returned || it.lost }
         val newStatus = when {
@@ -198,7 +202,7 @@ class ClosetRepository(
         laundryDao.updateTicket(
             ticket.copy(
                 status = newStatus,
-                receivedAt = if (newStatus == TicketStatus.RECEIVED) now else ticket.receivedAt,
+                receivedAt = if (newStatus == TicketStatus.RECEIVED) now else null,
             )
         )
     }

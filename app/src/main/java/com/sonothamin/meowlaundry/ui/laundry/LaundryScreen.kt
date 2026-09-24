@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.ui.components.EmptyState
+import com.sonothamin.meowlaundry.ui.components.serviceLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -255,7 +256,7 @@ private fun TicketRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Ticket #${ticket.id} · ${ticket.serviceType}", style = MaterialTheme.typography.titleMedium)
+                Text("Ticket #${ticket.id} · ${serviceLabel(ticket.serviceType)}", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Sent ${dateFormat.format(Date(ticket.sentAt))}" +
                         (ticket.receivedAt?.let { " · received ${dateFormat.format(Date(it))}" } ?: ""),
