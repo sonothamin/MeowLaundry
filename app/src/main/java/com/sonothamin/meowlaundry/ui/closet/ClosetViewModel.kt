@@ -3,6 +3,7 @@ package com.sonothamin.meowlaundry.ui.closet
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sonothamin.meowlaundry.data.AppPreferences
+import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClosetViewMode
 import com.sonothamin.meowlaundry.data.ClothingItem
@@ -48,6 +49,11 @@ class ClosetViewModel(
                 // "All" means all active garments - archived ones have their own filter chip
                 // and live in the Archive screen so they don't clutter the everyday view.
                 null -> repository.observeAllClothing().map { list -> list.filter { it.status != ClothingStatus.ARCHIVED } }
+                // Lost garments live in the archive (reason "Lost"); the chip is a shortcut to them.
+                ClothingStatus.LOST -> combine(
+                    repository.observeClothingByStatus(ClothingStatus.LOST),
+                    repository.observeArchivedByReason(ArchiveReason.LOST),
+                ) { legacy, archived -> legacy + archived }
                 else -> repository.observeClothingByStatus(status)
             }
         }

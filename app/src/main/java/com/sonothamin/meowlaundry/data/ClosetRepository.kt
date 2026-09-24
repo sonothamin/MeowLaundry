@@ -37,8 +37,8 @@ class ClosetRepository(
     fun observeSummary(): Flow<ClosetSummary> = combine(
         clothingDao.observeCountByStatus(ClothingStatus.IN_CLOSET),
         clothingDao.observeCountByStatus(ClothingStatus.AT_LAUNDRY),
-        clothingDao.observeCountByStatus(ClothingStatus.LOST),
-        clothingDao.observeValueByStatusAndCurrency(ClothingStatus.LOST),
+        clothingDao.observeLostCount(),
+        clothingDao.observeLostValueByCurrency(),
     ) { inCloset, atLaundry, lost, lostValues ->
         ClosetSummary(inCloset, atLaundry, lost, lostValues)
     }
@@ -197,9 +197,12 @@ class ClosetRepository(
         }
         laundryDao.updateTicketItems(updated)
 
-        returnedItemIds.forEach { clothingDao.setStatus(it, ClothingStatus.IN_CLOSET, now) }
-        lostItemIds.forEach { clothingDao.setStatus(it, ClothingStatus.LOST, now) }
-        resetItemIds.forEach { clothingDao.setStatus(it, ClothingStatus.AT_LAUNDRY, now) }
+        returnedItemIds.forEach { putBack(it, ClothingStatus.IN_CLOSET, now) }
+        // A lost garment goes to the Archive, filed under "Lost".
+        lostItemIds.forEach {
+            clothingDao.archive(it, ArchiveReason.LOST, "Lost at the laundry (ticket #$ticketId)", now)
+        }
+        resetItemIds.forEach { putBack(it, ClothingStatus.AT_LAUNDRY, now) }
 
         val allAccountedFor = updated.all { it.returned || it.lost }
         val newStatus = when {
@@ -220,6 +223,21 @@ class ClosetRepository(
         val ticket = laundryDao.getTicket(ticketId) ?: return
         laundryDao.updateTicket(ticket.copy(status = TicketStatus.CLOSED))
     }
+
+    /**
+     * Sets a garment's status after a laundry decision. If an earlier decision had archived it as
+     * lost, it comes back out of the archive first, so undoing "lost" really restores it.
+     */
+    private suspend fun putBack(id: Long, status: ClothingStatus, now: Long) {
+        val item = clothingDao.getById(id)
+        if (item?.status == ClothingStatus.ARCHIVED && item.archiveReason == ArchiveReason.LOST) {
+            clothingDao.unarchive(id, now)
+        }
+        clothingDao.setStatus(id, status, now)
+    }
+
+    /** Files garments marked lost under the old scheme into the archive. Safe to run repeatedly. */
+    suspend fun migrateLegacyLost() = clothingDao.archiveLegacyLost()
 
     /**
      * Undoes [closeTicket]: puts the ticket back to the state its garments imply
@@ -384,6 +402,7 @@ class ClosetRepository(
                 )
             }
         )
+        clothingDao.archiveLegacyLost()
     }
 
     private suspend fun allClothingSnapshot(): List<ClothingItem> = clothingDao.observeAll().first()

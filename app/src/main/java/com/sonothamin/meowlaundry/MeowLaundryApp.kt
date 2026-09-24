@@ -46,6 +46,9 @@ class MeowLaundryApp : Application() {
         printDispatcher = PrintDispatcher(this, printPreferences)
 
         Reminders.createChannel(this)
-        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch { Reminders.sync(this@MeowLaundryApp) }
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            repository.migrateLegacyLost()
+            Reminders.sync(this@MeowLaundryApp)
+        }
     }
 }

@@ -78,6 +78,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.DueDates
@@ -219,7 +220,10 @@ fun TicketDetailScreen(
                         closed -> null // the banner already explains it
                         saved != ItemDecision.PENDING && garment.status == ClothingStatus.AT_LAUNDRY ->
                             "Out again on another ticket, so this can't be changed here"
-                        garment.status == ClothingStatus.ARCHIVED -> "Archived, so this can't be changed here"
+                        // Lost garments are archived as "Lost" - that one stays undoable from here.
+                        garment.status == ClothingStatus.ARCHIVED &&
+                            !(saved == ItemDecision.LOST && garment.archiveReason == ArchiveReason.LOST) ->
+                            "Archived, so this can't be changed here"
                         else -> null
                     }
                     GarmentDecisionCard(

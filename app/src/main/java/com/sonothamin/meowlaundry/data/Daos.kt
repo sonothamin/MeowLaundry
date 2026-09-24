@@ -106,6 +106,34 @@ interface ClothingDao {
 
     @Query("UPDATE clothing_items SET imagePath = :path WHERE id = :id")
     suspend fun setImagePath(id: Long, path: String?)
+
+    // "Lost" = archived with reason LOST. The old LOST status is still counted so nothing is missed
+    // until archiveLegacyLost() has moved those garments over.
+    @Query("SELECT COUNT(*) FROM clothing_items WHERE status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST')")
+    fun observeLostCount(): Flow<Int>
+
+    @Query(
+        """
+        SELECT currency AS currency, COALESCE(SUM(price), 0.0) AS total
+        FROM clothing_items
+        WHERE (status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST')) AND price IS NOT NULL
+        GROUP BY currency
+        ORDER BY total DESC
+        """
+    )
+    fun observeLostValueByCurrency(): Flow<List<CurrencyAmount>>
+
+    /** One-time tidy-up: garments marked lost before losses went to the archive get archived as lost. */
+    @Query(
+        """
+        UPDATE clothing_items
+        SET status = 'ARCHIVED', archiveReason = 'LOST',
+            archivedAt = COALESCE(archivedAt, updatedAt),
+            archiveNotes = COALESCE(archiveNotes, 'Lost at the laundry')
+        WHERE status = 'LOST'
+        """
+    )
+    suspend fun archiveLegacyLost()
 }
 
 @Dao
