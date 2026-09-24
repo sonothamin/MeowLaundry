@@ -36,7 +36,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ServiceType
 import com.sonothamin.meowlaundry.ui.components.ClothingCard
+import com.sonothamin.meowlaundry.ui.components.DueDateChips
 import com.sonothamin.meowlaundry.ui.components.EmptyState
+import com.sonothamin.meowlaundry.ui.components.rememberNotificationPermissionRequester
+import com.sonothamin.meowlaundry.ui.components.serviceLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +53,8 @@ fun SendToLaundryScreen(
     val selected by viewModel.selected.collectAsStateWithLifecycle()
     val serviceType by viewModel.serviceType.collectAsStateWithLifecycle()
     val providerName by viewModel.providerName.collectAsStateWithLifecycle()
+    val dueAt by viewModel.dueAt.collectAsStateWithLifecycle()
+    val askNotificationPermission = rememberNotificationPermissionRequester()
     val createdTicketId by viewModel.createdTicketId.collectAsStateWithLifecycle()
 
     LaunchedEffect(createdTicketId) {
@@ -75,6 +80,13 @@ fun SendToLaundryScreen(
                     label = { Text("Laundry / provider name (optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
+                )
+                DueDateChips(
+                    dueAt = dueAt,
+                    onChange = { at ->
+                        viewModel.setDueAt(at)
+                        if (at != null) askNotificationPermission() // reminders need the notification permission
+                    },
                 )
                 Text("${selected.size} garment(s) selected", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
             }
@@ -120,7 +132,7 @@ private fun ServiceTypeDropdown(selected: ServiceType, onSelect: (ServiceType) -
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
-            value = selected.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+            value = serviceLabel(selected),
             onValueChange = {},
             readOnly = true,
             label = { Text("Service") },
@@ -130,7 +142,7 @@ private fun ServiceTypeDropdown(selected: ServiceType, onSelect: (ServiceType) -
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             ServiceType.values().forEach { type ->
                 DropdownMenuItem(
-                    text = { Text(type.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }) },
+                    text = { Text(serviceLabel(type)) },
                     onClick = {
                         onSelect(type)
                         expanded = false

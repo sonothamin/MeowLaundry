@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalLaundryService
 import androidx.compose.material.icons.filled.Settings
@@ -52,6 +53,8 @@ import com.sonothamin.meowlaundry.ui.laundry.TicketDetailScreen
 import com.sonothamin.meowlaundry.ui.laundry.TicketDetailViewModel
 import com.sonothamin.meowlaundry.ui.onboarding.OnboardingScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsScreen
+import com.sonothamin.meowlaundry.ui.stats.StatsScreen
+import com.sonothamin.meowlaundry.ui.stats.StatsViewModel
 import com.sonothamin.meowlaundry.ui.settings.SettingsViewModel
 import kotlinx.coroutines.launch
 
@@ -69,11 +72,17 @@ private val tabs = listOf(
     TopLevelTab(Destination.Closet, "Closet", Icons.Default.Checkroom),
     TopLevelTab(Destination.Laundry, "Laundry", Icons.Default.LocalLaundryService),
     TopLevelTab(Destination.Archive, "Archive", Icons.Default.Inventory2),
+    TopLevelTab(Destination.Stats, "Stats", Icons.Default.Insights),
     TopLevelTab(Destination.Settings, "Settings", Icons.Default.Settings),
 )
 
 @Composable
-fun MeowLaundryNavHost(app: MeowLaundryApp) {
+fun MeowLaundryNavHost(
+    app: MeowLaundryApp,
+    /** Ticket to jump to (from a reminder notification); [onTicketOpened] is called once it's been handled. */
+    openTicketId: Long? = null,
+    onTicketOpened: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
@@ -87,6 +96,15 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
         if (onboardingComplete == true) Destination.Closet.route else Destination.Onboarding.route
     }
     var finishingOnboarding by remember { mutableStateOf(false) }
+
+    // Opened from a reminder: go straight to that ticket (back returns to the closet).
+    LaunchedEffect(openTicketId) {
+        val id = openTicketId ?: return@LaunchedEffect
+        if (startDestination != Destination.Onboarding.route) {
+            navController.navigate(Destination.TicketDetail.route(id)) { launchSingleTop = true }
+        }
+        onTicketOpened()
+    }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val showBottomBar = backStackEntry?.destination?.route != Destination.Onboarding.route
@@ -264,10 +282,20 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                 ArchiveScreen(viewModel = vm, onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) })
             }
 
+            composable(Destination.Stats.route) {
+                val vm: StatsViewModel = viewModel(
+                    factory = LambdaViewModelFactory { StatsViewModel(app.repository) },
+                )
+                StatsScreen(
+                    viewModel = vm,
+                    onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
+                )
+            }
+
             composable(Destination.Settings.route) {
                 val vm: SettingsViewModel = viewModel(
                     factory = LambdaViewModelFactory {
-                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences)
+                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
                     },
                 )
                 SettingsScreen(viewModel = vm)

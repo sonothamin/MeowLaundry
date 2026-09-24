@@ -3,6 +3,8 @@ package com.sonothamin.meowlaundry.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +27,9 @@ class AppPreferences(private val context: Context) {
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         val DEFAULT_CURRENCY = stringPreferencesKey("default_currency")
         val UI_FONT = stringPreferencesKey("ui_font")
+        val REMINDERS_ENABLED = booleanPreferencesKey("reminders_enabled")
+        val REMINDER_HOUR = intPreferencesKey("reminder_hour")
+        val LAST_REMINDER_DAY = longPreferencesKey("last_reminder_day")
     }
 
     /** Currency pre-selected for new articles. Falls back to the device's regional currency. */
@@ -44,6 +49,27 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setUiFont(name: String) {
         context.appDataStore.edit { it[Keys.UI_FONT] = name }
+    }
+
+    /** Whether "laundry is due" notifications are on. */
+    val remindersEnabled: Flow<Boolean> = context.appDataStore.data.map { it[Keys.REMINDERS_ENABLED] ?: true }
+
+    suspend fun setRemindersEnabled(enabled: Boolean) {
+        context.appDataStore.edit { it[Keys.REMINDERS_ENABLED] = enabled }
+    }
+
+    /** Hour of day (0-23, local time) the daily reminder check runs. */
+    val reminderHour: Flow<Int> = context.appDataStore.data.map { it[Keys.REMINDER_HOUR] ?: 9 }
+
+    suspend fun setReminderHour(hour: Int) {
+        context.appDataStore.edit { it[Keys.REMINDER_HOUR] = hour.coerceIn(0, 23) }
+    }
+
+    /** Epoch day of the last reminder run, so a rescheduled worker never notifies twice in one day. */
+    val lastReminderDay: Flow<Long> = context.appDataStore.data.map { it[Keys.LAST_REMINDER_DAY] ?: -1L }
+
+    suspend fun setLastReminderDay(epochDay: Long) {
+        context.appDataStore.edit { it[Keys.LAST_REMINDER_DAY] = epochDay }
     }
 
     val themeMode: Flow<ThemeMode> = context.appDataStore.data.map { prefs ->

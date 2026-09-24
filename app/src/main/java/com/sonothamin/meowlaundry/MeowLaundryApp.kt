@@ -8,6 +8,11 @@ import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.data.PrintPreferences
 import com.sonothamin.meowlaundry.data.backup.BackupManager
 import com.sonothamin.meowlaundry.print.PrintDispatcher
+import com.sonothamin.meowlaundry.reminders.Reminders
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Hand-rolled DI container. The app is small enough that a dependency-injection
@@ -39,5 +44,8 @@ class MeowLaundryApp : Application() {
         appPreferences = AppPreferences(this)
         backupManager = BackupManager(this, repository)
         printDispatcher = PrintDispatcher(this, printPreferences)
+
+        Reminders.createChannel(this)
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch { Reminders.sync(this@MeowLaundryApp) }
     }
 }

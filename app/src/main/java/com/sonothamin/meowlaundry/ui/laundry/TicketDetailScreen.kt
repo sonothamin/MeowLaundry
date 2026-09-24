@@ -3,6 +3,7 @@ package com.sonothamin.meowlaundry.ui.laundry
 import android.text.format.DateUtils
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,8 @@ import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -60,7 +63,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,10 +80,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
+import com.sonothamin.meowlaundry.data.DueDates
+import com.sonothamin.meowlaundry.data.DueState
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.TicketStatus
+import com.sonothamin.meowlaundry.ui.components.DueChip
+import com.sonothamin.meowlaundry.ui.components.DueDatePickerDialog
 import com.sonothamin.meowlaundry.ui.components.InfoBlock
 import com.sonothamin.meowlaundry.ui.components.InfoCell
+import com.sonothamin.meowlaundry.ui.components.rememberNotificationPermissionRequester
 import com.sonothamin.meowlaundry.ui.components.serviceIcon
 import com.sonothamin.meowlaundry.ui.components.serviceLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -101,6 +111,8 @@ fun TicketDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    var showDuePicker by remember { mutableStateOf(false) }
+    val askNotificationPermission = rememberNotificationPermissionRequester()
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -156,6 +168,10 @@ fun TicketDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 item { TicketInfo(ticket = ticket, itemCount = total) }
+
+                if (DueDates.isOpen(ticket)) {
+                    item { DueCard(ticket = ticket, onClick = { showDuePicker = true }) }
+                }
 
                 item {
                     ProgressCard(
@@ -245,6 +261,21 @@ fun TicketDetailScreen(
         }
     }
 
+    if (showDuePicker && ticket != null) {
+        DueDatePickerDialog(
+            initial = ticket.expectedReturnAt,
+            onDismiss = { showDuePicker = false },
+            onConfirm = {
+                showDuePicker = false
+                viewModel.setDueDate(it)
+                askNotificationPermission()
+            },
+            onClear = if (ticket.expectedReturnAt != null) {
+                { showDuePicker = false; viewModel.setDueDate(null) }
+            } else null,
+        )
+    }
+
     state.previewBitmap?.let { bitmap ->
         AlertDialog(
             onDismissRequest = viewModel::dismissPreview,
@@ -296,6 +327,46 @@ private fun dateInfoCell(label: String, icon: ImageVector, at: Long): InfoCell {
     val date = SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(at))
     val relative = DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS).toString()
     return InfoCell(label, date, icon, sub = relative)
+}
+
+/** Tappable "Due back" card: shows the date and how close it is, and opens the date picker. */
+@Composable
+private fun DueCard(ticket: LaundryTicket, onClick: () -> Unit) {
+    val info = DueDates.info(ticket)
+    val overdue = info?.state == DueState.OVERDUE
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = if (overdue) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Icon(
+                if (overdue) Icons.Default.Warning else Icons.Default.Event,
+                contentDescription = null,
+                tint = if (overdue) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Due back",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (overdue) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    ticket.expectedReturnAt?.let { DueDates.format(it) } ?: "No date set",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (overdue) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            if (info != null) {
+                DueChip(info)
+            } else {
+                Text("Set date", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
 }
 
 @Composable

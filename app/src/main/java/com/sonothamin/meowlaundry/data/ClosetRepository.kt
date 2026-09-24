@@ -158,6 +158,15 @@ class ClosetRepository(
 
     suspend fun getTicket(id: Long) = laundryDao.getTicket(id)
 
+    fun observeAllTicketItems(): Flow<List<LaundryTicketItem>> = laundryDao.observeAllTicketItems()
+
+    suspend fun getItemsForTicket(ticketId: Long): List<LaundryTicketItem> = laundryDao.getItemsForTicket(ticketId)
+
+    /** Sets, changes (or with null, clears) the day a ticket is expected back. */
+    suspend fun setExpectedReturn(ticketId: Long, at: Long?) = laundryDao.setExpectedReturn(ticketId, at)
+
+    suspend fun getOpenTicketsWithDueDate(): List<LaundryTicket> = laundryDao.getOpenTicketsWithDueDate()
+
     suspend fun getGarmentsForIds(ids: List<Long>): List<ClothingItem> =
         ids.mapNotNull { clothingDao.getById(it) }
 

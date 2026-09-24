@@ -78,6 +78,7 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.okhttp)
+    implementation(libs.androidx.work.runtime.ktx)
 }
 
 // Ndot/NType (Nothing) and Samsung Sans are branded fonts that aren't ours to commit to this repo.

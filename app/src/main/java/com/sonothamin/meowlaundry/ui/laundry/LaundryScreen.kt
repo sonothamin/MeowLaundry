@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -34,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,6 +56,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.ui.components.EmptyState
+import com.sonothamin.meowlaundry.data.DueDates
+import com.sonothamin.meowlaundry.data.DueState
+import com.sonothamin.meowlaundry.ui.components.DueChip
 import com.sonothamin.meowlaundry.ui.components.serviceLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
@@ -86,6 +91,7 @@ fun LaundryScreen(
     var showClearAllConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    val overdueCount = remember(tickets) { tickets.count { DueDates.info(it)?.state == DueState.OVERDUE } }
     val closedCount = remember(tickets) { tickets.count { it.status == TicketStatus.CLOSED } }
     val closedSelectedCount = remember(tickets, selectedIds) {
         tickets.count { it.id in selectedIds && it.status == TicketStatus.CLOSED }
@@ -187,6 +193,9 @@ fun LaundryScreen(
                 contentPadding = PaddingValues(Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
+                if (overdueCount > 0 && !selectionMode) {
+                    item { OverdueBanner(overdueCount) }
+                }
                 items(tickets, key = { it.id }) { ticket ->
                     TicketRow(
                         ticket = ticket,
@@ -268,10 +277,31 @@ private fun TicketRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                DueDates.info(ticket)?.let { info ->
+                    DueChip(info, modifier = Modifier.padding(top = Spacing.xs))
+                }
             }
             if (selected) {
                 Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
             }
+        }
+    }
+}
+
+@Composable
+private fun OverdueBanner(count: Int) {
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.errorContainer) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+            Text(
+                if (count == 1) "1 ticket is overdue" else "$count tickets are overdue",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.ui.settings
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,6 +11,8 @@ import com.sonothamin.meowlaundry.data.ThemeMode
 import com.sonothamin.meowlaundry.data.backup.BackupManager
 import com.sonothamin.meowlaundry.print.MeowSpoolClient
 import com.sonothamin.meowlaundry.print.MeowSpoolResult
+import com.sonothamin.meowlaundry.reminders.Reminders
+import kotlinx.coroutines.flow.first
 import com.sonothamin.meowlaundry.ui.theme.UiFont
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,6 +32,7 @@ class SettingsViewModel(
     private val printPreferences: PrintPreferences,
     private val backupManager: BackupManager,
     private val appPreferences: AppPreferences,
+    private val appContext: Context,
 ) : ViewModel() {
 
     val printSettings: StateFlow<PrintServerSettings> = printPreferences.settings
@@ -51,6 +55,32 @@ class SettingsViewModel(
     fun setDefaultCurrency(code: String) {
         viewModelScope.launch { appPreferences.setDefaultCurrency(code) }
     }
+
+    val remindersEnabled: StateFlow<Boolean> = appPreferences.remindersEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    val reminderHour: StateFlow<Int> = appPreferences.reminderHour
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 9)
+
+    fun setRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            appPreferences.setRemindersEnabled(enabled)
+            if (enabled) {
+                Reminders.schedule(appContext, appPreferences.reminderHour.first(), replace = true)
+            } else {
+                Reminders.cancel(appContext)
+            }
+        }
+    }
+
+    fun setReminderHour(hour: Int) {
+        viewModelScope.launch {
+            appPreferences.setReminderHour(hour)
+            if (appPreferences.remindersEnabled.first()) Reminders.schedule(appContext, hour, replace = true)
+        }
+    }
+
+    fun sendTestReminder() = Reminders.postTest(appContext)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState

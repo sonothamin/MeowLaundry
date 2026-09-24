@@ -156,6 +156,16 @@ interface LaundryDao {
     @Query("SELECT * FROM laundry_tickets WHERE id = :id")
     suspend fun getTicket(id: Long): LaundryTicket?
 
+    @Query("UPDATE laundry_tickets SET expectedReturnAt = :at WHERE id = :id")
+    suspend fun setExpectedReturn(id: Long, at: Long?)
+
+    /** Tickets that still have garments out and a due date - what reminders look at. */
+    @Query("SELECT * FROM laundry_tickets WHERE expectedReturnAt IS NOT NULL AND status IN ('SENT', 'PARTIALLY_RECEIVED')")
+    suspend fun getOpenTicketsWithDueDate(): List<LaundryTicket>
+
+    @Query("SELECT * FROM laundry_ticket_items")
+    fun observeAllTicketItems(): Flow<List<LaundryTicketItem>>
+
     @Query("SELECT * FROM laundry_tickets WHERE id = :id")
     fun observeTicket(id: Long): Flow<LaundryTicket?>
 

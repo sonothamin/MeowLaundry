@@ -131,6 +131,11 @@ class TicketDetailViewModel(
         }
     }
 
+    /** Sets, changes (or with null, clears) the day this ticket is expected back. */
+    fun setDueDate(at: Long?) {
+        viewModelScope.launch { repository.setExpectedReturn(ticketId, at) }
+    }
+
     /** Undoes a close: the ticket goes back to being editable and can be closed again later. */
     fun reopenTicket() {
         viewModelScope.launch {

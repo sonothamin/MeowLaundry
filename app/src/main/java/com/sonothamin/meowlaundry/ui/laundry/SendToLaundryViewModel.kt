@@ -31,6 +31,14 @@ class SendToLaundryViewModel(
     private val _providerName = MutableStateFlow("")
     val providerName: StateFlow<String> = _providerName.asStateFlow()
 
+    /** Start of the day the garments are expected back, or null for no due date. */
+    private val _dueAt = MutableStateFlow<Long?>(null)
+    val dueAt: StateFlow<Long?> = _dueAt.asStateFlow()
+
+    fun setDueAt(at: Long?) {
+        _dueAt.value = at
+    }
+
     private val _createdTicketId = MutableStateFlow<Long?>(null)
     val createdTicketId: StateFlow<Long?> = _createdTicketId.asStateFlow()
 
@@ -57,6 +65,7 @@ class SendToLaundryViewModel(
                 LaundryTicket(
                     serviceType = _serviceType.value,
                     providerName = _providerName.value.trim().ifBlank { null },
+                    expectedReturnAt = _dueAt.value,
                 ),
                 ids,
             )

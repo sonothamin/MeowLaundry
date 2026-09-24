@@ -47,6 +47,7 @@ import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
 import com.sonothamin.meowlaundry.data.ThemeMode
 import com.sonothamin.meowlaundry.ui.components.CurrencyDropdown
+import com.sonothamin.meowlaundry.ui.components.rememberNotificationPermissionRequester
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -59,6 +60,9 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val defaultCurrency by viewModel.defaultCurrency.collectAsStateWithLifecycle()
     val storedFont by viewModel.uiFontName.collectAsStateWithLifecycle()
+    val remindersEnabled by viewModel.remindersEnabled.collectAsStateWithLifecycle()
+    val reminderHour by viewModel.reminderHour.collectAsStateWithLifecycle()
+    val askNotificationPermission = rememberNotificationPermissionRequester()
     val context = LocalContext.current
     val currentFont = remember(storedFont) { UiFont.resolve(context, storedFont) }
     val availableFonts = remember { UiFont.values().filter { it.isAvailable(context) } }
@@ -207,6 +211,43 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             if (printMethod == PrintMethod.NETWORK) {
                 uiState.connectionStatus?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            HorizontalDivider()
+
+            Text("Reminders", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Switch(
+                    checked = remindersEnabled,
+                    onCheckedChange = {
+                        viewModel.setRemindersEnabled(it)
+                        if (it) askNotificationPermission()
+                    },
+                )
+                Text("Remind me when laundry is due", modifier = Modifier.padding(start = Spacing.sm))
+            }
+            Text(
+                "A notification the day before, on the due date, and each day a ticket is overdue. " +
+                    "Set a due date when you send clothes, or on the ticket later.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (remindersEnabled) {
+                val times = listOf("Morning" to 9, "Afternoon" to 14, "Evening" to 18)
+                Text("Remind me in the", style = MaterialTheme.typography.labelLarge)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    times.forEachIndexed { index, (label, hour) ->
+                        SegmentedButton(
+                            selected = reminderHour == hour,
+                            onClick = { viewModel.setReminderHour(hour) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = times.size),
+                            label = { Text(label) },
+                        )
+                    }
+                }
+                OutlinedButton(onClick = { askNotificationPermission(); viewModel.sendTestReminder() }) {
+                    Text("Send a test notification")
                 }
             }
 

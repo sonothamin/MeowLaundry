@@ -6,6 +6,7 @@ sealed class Destination(val route: String) {
     data object Closet : Destination("closet")
     data object Laundry : Destination("laundry")
     data object Archive : Destination("archive")
+    data object Stats : Destination("stats")
     data object Settings : Destination("settings")
 
     data object ItemEditNew : Destination("item/new")
@@ -31,5 +32,6 @@ val topLevelDestinations = listOf(
     Destination.Closet,
     Destination.Laundry,
     Destination.Archive,
+    Destination.Stats,
     Destination.Settings,
 )
