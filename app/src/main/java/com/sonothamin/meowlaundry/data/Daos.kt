@@ -174,6 +174,40 @@ interface LaundryDao {
     @Query("DELETE FROM laundry_ticket_items")
     suspend fun deleteAllTicketItems()
 
+    @Query("DELETE FROM laundry_ticket_items WHERE ticketId IN (:ticketIds)")
+    suspend fun deleteTicketItemsByTicketIds(ticketIds: List<Long>)
+
+    @Query("SELECT id FROM laundry_tickets WHERE status = 'CLOSED'")
+    suspend fun getClosedTicketIds(): List<Long>
+
+    @Query("SELECT id FROM laundry_tickets WHERE status = 'CLOSED' AND id IN (:ids)")
+    suspend fun getClosedTicketIdsAmong(ids: List<Long>): List<Long>
+
+    /**
+     * Removes only tickets that are already CLOSED (and their items). Open tickets are left
+     * alone: deleting them would strand their garments in AT_LAUNDRY with no ticket to resolve.
+     * Returns how many tickets were removed.
+     */
+    @Transaction
+    suspend fun deleteClosedTicketsAmong(ids: List<Long>): Int {
+        val closed = getClosedTicketIdsAmong(ids)
+        closed.chunked(500).forEach {
+            deleteTicketItemsByTicketIds(it)
+            deleteTicketsByIds(it)
+        }
+        return closed.size
+    }
+
+    @Transaction
+    suspend fun deleteAllClosedTickets(): Int {
+        val closed = getClosedTicketIds()
+        closed.chunked(500).forEach {
+            deleteTicketItemsByTicketIds(it)
+            deleteTicketsByIds(it)
+        }
+        return closed.size
+    }
+
     @Query("SELECT * FROM laundry_ticket_items WHERE ticketId = :ticketId")
     fun observeItemsForTicket(ticketId: Long): Flow<List<LaundryTicketItem>>
 

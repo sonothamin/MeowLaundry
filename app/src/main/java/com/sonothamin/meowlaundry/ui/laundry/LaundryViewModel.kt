@@ -67,17 +67,32 @@ class LaundryViewModel(
         val ids = _selectedIds.value.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            repository.deleteTicketsByIds(ids)
+            // Only closed tickets can be deleted; open ones still have garments at the laundry.
+            val deleted = repository.deleteClosedTicketsByIds(ids)
             _selectedIds.value = emptySet()
-            _events.emit(LaundryEvent.Message("Deleted ${ids.size} ticket(s)"))
+            val skipped = ids.size - deleted
+            _events.emit(
+                LaundryEvent.Message(
+                    when {
+                        deleted == 0 -> "Only closed tickets can be deleted"
+                        skipped > 0 -> "Deleted $deleted closed ticket(s); $skipped open ticket(s) kept"
+                        else -> "Deleted $deleted ticket(s)"
+                    }
+                )
+            )
         }
     }
 
-    fun clearAllHistory() {
+    /** Clears history = removes closed tickets only. Open tickets and their garments stay put. */
+    fun clearClosedHistory() {
         viewModelScope.launch {
-            repository.clearAllTickets()
+            val cleared = repository.clearClosedTickets()
             _selectedIds.value = emptySet()
-            _events.emit(LaundryEvent.Message("History cleared"))
+            _events.emit(
+                LaundryEvent.Message(
+                    if (cleared == 0) "No closed tickets to clear" else "Cleared $cleared closed ticket(s)"
+                )
+            )
         }
     }
 

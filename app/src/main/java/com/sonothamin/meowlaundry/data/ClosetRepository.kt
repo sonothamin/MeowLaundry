@@ -198,7 +198,14 @@ class ClosetRepository(
 
     suspend fun getTicketsByIds(ids: List<Long>): List<LaundryTicket> = laundryDao.getTicketsByIds(ids)
 
-    /** Deletes every ticket in history. Garment statuses are untouched. */
+    /** Deletes only the CLOSED tickets among [ids]; returns how many were removed. */
+    suspend fun deleteClosedTicketsByIds(ids: List<Long>): Int =
+        if (ids.isEmpty()) 0 else laundryDao.deleteClosedTicketsAmong(ids)
+
+    /** "Clear history": removes every CLOSED ticket and leaves open ones untouched. */
+    suspend fun clearClosedTickets(): Int = laundryDao.deleteAllClosedTickets()
+
+    /** Deletes every ticket, open or closed. Only for wiping data (e.g. restore); not "clear history". */
     suspend fun clearAllTickets() {
         laundryDao.deleteAllTicketItems()
         laundryDao.deleteAllTickets()

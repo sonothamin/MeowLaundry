@@ -39,6 +39,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +68,8 @@ fun LaundryScreen(
     viewModel: LaundryViewModel,
     onSendNew: () -> Unit,
     onOpenTicket: (Long) -> Unit,
+    flashMessage: String? = null,
+    onFlashShown: () -> Unit = {},
 ) {
     val tickets by viewModel.tickets.collectAsStateWithLifecycle()
     val selectionMode by viewModel.selectionMode.collectAsStateWithLifecycle()
@@ -75,6 +79,21 @@ fun LaundryScreen(
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val closedCount = remember(tickets) { tickets.count { it.status == TicketStatus.CLOSED } }
+    val closedSelectedCount = remember(tickets, selectedIds) {
+        tickets.count { it.id in selectedIds && it.status == TicketStatus.CLOSED }
+    }
+
+    // Message handed back by another screen (e.g. "Ticket #4 closed"). Consume it first so it
+    // shows once, then show it in its own coroutine so clearing the key doesn't cancel it.
+    LaunchedEffect(flashMessage) {
+        if (flashMessage != null) {
+            onFlashShown()
+            scope.launch { snackbarHostState.showSnackbar(flashMessage) }
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -113,8 +132,8 @@ fun LaundryScreen(
                             IconButton(onClick = { viewModel.exportSelected(context) }) {
                                 Icon(Icons.Default.FileDownload, contentDescription = "Export")
                             }
-                            IconButton(onClick = { showDeleteConfirm = true }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                            IconButton(onClick = { showDeleteConfirm = true }, enabled = closedSelectedCount > 0) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete closed tickets")
                             }
                         },
                     )
@@ -122,9 +141,9 @@ fun LaundryScreen(
                     TopAppBar(
                         title = { Text("Laundry") },
                         actions = {
-                            if (tickets.isNotEmpty()) {
+                            if (closedCount > 0) {
                                 IconButton(onClick = { showClearAllConfirm = true }) {
-                                    Icon(Icons.Default.DeleteSweep, contentDescription = "Clear all")
+                                    Icon(Icons.Default.DeleteSweep, contentDescription = "Clear closed history")
                                 }
                             }
                         },
@@ -171,8 +190,14 @@ fun LaundryScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete ${selectedIds.size} ticket(s)?") },
-            text = { Text("This removes them from your history. Garment statuses are unaffected.") },
+            title = { Text("Delete $closedSelectedCount closed ticket(s)?") },
+            text = {
+                val openSelected = selectedIds.size - closedSelectedCount
+                Text(
+                    "This removes them from your history and can't be undone." +
+                        if (openSelected > 0) " $openSelected open ticket(s) in your selection will be kept." else ""
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { showDeleteConfirm = false; viewModel.deleteSelected() }) { Text("Delete") }
             },
@@ -183,10 +208,10 @@ fun LaundryScreen(
     if (showClearAllConfirm) {
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
-            title = { Text("Clear all history?") },
-            text = { Text("This permanently deletes every ticket in your history. Garment statuses are unaffected. This can't be undone.") },
+            title = { Text("Clear $closedCount closed ticket(s)?") },
+            text = { Text("Closed tickets are removed from your history for good. Tickets that are still out at the laundry are not touched.") },
             confirmButton = {
-                TextButton(onClick = { showClearAllConfirm = false; viewModel.clearAllHistory() }) { Text("Clear all") }
+                TextButton(onClick = { showClearAllConfirm = false; viewModel.clearClosedHistory() }) { Text("Clear history") }
             },
             dismissButton = { TextButton(onClick = { showClearAllConfirm = false }) { Text("Cancel") } },
         )

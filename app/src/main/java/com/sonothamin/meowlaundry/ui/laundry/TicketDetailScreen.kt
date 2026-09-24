@@ -54,6 +54,7 @@ import com.sonothamin.meowlaundry.ui.theme.Spacing
 fun TicketDetailScreen(
     viewModel: TicketDetailViewModel,
     onBack: () -> Unit,
+    onClosed: () -> Unit = onBack,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -63,6 +64,7 @@ fun TicketDetailScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is TicketDetailEvent.Message -> snackbarHostState.showSnackbar(event.text)
+                TicketDetailEvent.Closed -> onClosed()
                 is TicketDetailEvent.LaunchIntent -> runCatching {
                     context.startActivity(android.content.Intent.createChooser(event.intent, event.chooserTitle))
                 }.onFailure {

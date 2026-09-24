@@ -46,9 +46,12 @@ class SendToLaundryViewModel(
         _providerName.value = name
     }
 
+    private var sending = false
+
     fun confirmSend() {
         val ids = _selected.value.toList()
-        if (ids.isEmpty()) return
+        if (ids.isEmpty() || sending) return // ignore double taps: one tap = one ticket
+        sending = true
         viewModelScope.launch {
             val ticketId = repository.sendToLaundry(
                 LaundryTicket(

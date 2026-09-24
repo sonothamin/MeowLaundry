@@ -23,6 +23,9 @@ import kotlinx.coroutines.launch
 sealed class TicketDetailEvent {
     data class LaunchIntent(val intent: android.content.Intent, val chooserTitle: String) : TicketDetailEvent()
     data class Message(val text: String) : TicketDetailEvent()
+
+    /** The ticket was closed; the screen has nothing left to do and should leave. */
+    data object Closed : TicketDetailEvent()
 }
 
 data class TicketDetailUiState(
@@ -83,8 +86,15 @@ class TicketDetailViewModel(
         }
     }
 
+    private var closing = false
+
     fun closeTicket() {
-        viewModelScope.launch { repository.closeTicket(ticketId) }
+        if (closing) return // ignore double taps while the close is in flight
+        closing = true
+        viewModelScope.launch {
+            repository.closeTicket(ticketId)
+            _events.emit(TicketDetailEvent.Closed)
+        }
     }
 
     /** Renders the label and shows it in a preview dialog, without sending it anywhere. */
