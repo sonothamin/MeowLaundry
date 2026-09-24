@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
-import com.sonothamin.meowlaundry.data.ClothingItemPhoto
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.PhotoStore
@@ -15,14 +14,23 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * One photo in the gallery, whether or not the article has been saved yet.
+ * [id] is the DB row id once persisted, or null for a photo still only staged locally
+ * (a brand-new article that hasn't been saved for the first time yet).
+ */
+data class PhotoEntry(
+    val id: Long?,
+    val path: String,
+    val isPrimary: Boolean,
+)
+
 data class ItemEditUiState(
     val id: Long? = null,
     val title: String = "",
     val type: ClothingType = ClothingType.TOP,
-    /** Staged photo for a brand-new article, before it has been saved once and gained an id. */
-    val stagedImagePath: String? = null,
-    /** Full gallery, only populated once the article exists in the database. */
-    val photos: List<ClothingItemPhoto> = emptyList(),
+    /** Every photo, in order. Works the same whether the article exists in the DB yet or not. */
+    val photos: List<PhotoEntry> = emptyList(),
     val priceText: String = "",
     val notes: String = "",
     val status: ClothingStatus = ClothingStatus.IN_CLOSET,
@@ -32,10 +40,7 @@ data class ItemEditUiState(
 ) {
     val isNew: Boolean get() = id == null
     val isValid: Boolean get() = title.isNotBlank()
-
-    /** The photo shown as the "main" one: the gallery's primary once one exists, else the staged pick. */
-    val primaryImagePath: String?
-        get() = photos.firstOrNull { it.isPrimary }?.path ?: stagedImagePath
+    val primaryImagePath: String? get() = photos.firstOrNull { it.isPrimary }?.path
 }
 
 class ItemEditViewModel(
@@ -52,45 +57,52 @@ class ItemEditViewModel(
             viewModelScope.launch {
                 val item = repository.getClothingById(itemId)
                 if (item != null) {
-                    _state.value = ItemEditUiState(
-                        id = item.id,
-                        title = item.title,
-                        type = item.type,
-                        priceText = item.price?.let { formatPrice(it) } ?: "",
-                        notes = item.notes.orEmpty(),
-                        status = item.status,
-                    )
+                    _state.update {
+                        it.copy(
+                            id = item.id,
+                            title = item.title,
+                            type = item.type,
+                            priceText = item.price?.let { p -> formatPrice(p) } ?: "",
+                            notes = item.notes.orEmpty(),
+                            status = item.status,
+                        )
+                    }
                 } else {
-                    _state.value = _state.value.copy(isLoading = false)
+                    _state.update { it.copy(isLoading = false) }
                 }
             }
             viewModelScope.launch {
                 repository.observePhotosForItem(itemId).collect { photos ->
-                    _state.update { it.copy(photos = photos, isLoading = false) }
+                    _state.update {
+                        it.copy(
+                            photos = photos.map { p -> PhotoEntry(id = p.id, path = p.path, isPrimary = p.isPrimary) },
+                            isLoading = false,
+                        )
+                    }
                 }
             }
         }
     }
 
     fun onTitleChange(value: String) {
-        _state.value = _state.value.copy(title = value)
+        _state.update { it.copy(title = value) }
     }
 
     fun onTypeChange(value: ClothingType) {
-        _state.value = _state.value.copy(type = value)
+        _state.update { it.copy(type = value) }
     }
 
     fun onPriceChange(value: String) {
-        _state.value = _state.value.copy(priceText = value)
+        _state.update { it.copy(priceText = value) }
     }
 
     fun onNotesChange(value: String) {
-        _state.value = _state.value.copy(notes = value)
+        _state.update { it.copy(notes = value) }
     }
 
-    /** Adds a photo picked from the gallery/camera. Multiple photos are allowed; the first one added becomes primary. */
-    fun onPhotoPicked(uri: Uri) {
-        addPhotoPath(photoStore.importPhoto(uri))
+    /** Adds one or more photos picked from the gallery. Any number is allowed; the first ever added is primary. */
+    fun onPhotosPicked(uris: List<Uri>) {
+        uris.forEach { uri -> addPhotoPath(photoStore.importPhoto(uri)) }
     }
 
     fun onPhotoCaptured(path: String) {
@@ -98,33 +110,47 @@ class ItemEditViewModel(
     }
 
     private fun addPhotoPath(path: String) {
-        val id = _state.value.id
-        if (id != null) {
-            viewModelScope.launch { repository.addPhoto(id, path) }
+        val itemId = _state.value.id
+        if (itemId != null) {
+            // Already saved: persist straight to the gallery table; the Flow collected in
+            // init refreshes state.photos automatically once the write lands.
+            viewModelScope.launch { repository.addPhoto(itemId, path) }
         } else {
-            // The article doesn't exist yet. Stage this as the single pre-save photo; it becomes
-            // the first (primary) gallery entry once the article is saved for the first time.
-            val previousStaged = _state.value.stagedImagePath
-            if (previousStaged != null) photoStore.delete(previousStaged)
-            _state.value = _state.value.copy(stagedImagePath = path)
+            // Not saved yet: stage it locally. All staged photos are registered in the real
+            // gallery table (in the same primary order) the first time the article is saved.
+            _state.update { current ->
+                val makePrimary = current.photos.isEmpty()
+                current.copy(photos = current.photos + PhotoEntry(id = null, path = path, isPrimary = makePrimary))
+            }
         }
     }
 
-    /** Removes a photo that already belongs to a saved article's gallery. */
-    fun removeGalleryPhoto(photo: ClothingItemPhoto) {
-        viewModelScope.launch { repository.removePhoto(photo) }
+    /** Removes any photo, staged or already persisted. */
+    fun removePhoto(photo: PhotoEntry) {
+        if (photo.id != null) {
+            viewModelScope.launch { repository.removePhotoById(photo.id) }
+        } else {
+            photoStore.delete(photo.path)
+            _state.update { current ->
+                val remaining = current.photos.filterNot { it === photo || (it.id == null && it.path == photo.path) }
+                val fixed = if (photo.isPrimary && remaining.isNotEmpty() && remaining.none { it.isPrimary }) {
+                    remaining.mapIndexed { index, entry -> if (index == 0) entry.copy(isPrimary = true) else entry }
+                } else remaining
+                current.copy(photos = fixed)
+            }
+        }
     }
 
-    /** Makes an existing gallery photo the primary/cover photo. */
-    fun setPrimaryPhoto(photo: ClothingItemPhoto) {
-        val id = _state.value.id ?: return
-        viewModelScope.launch { repository.setPrimaryPhoto(id, photo.id) }
-    }
-
-    /** Removes the staged pre-save photo of a brand-new, not-yet-saved article. */
-    fun removeStagedPhoto() {
-        photoStore.delete(_state.value.stagedImagePath)
-        _state.value = _state.value.copy(stagedImagePath = null)
+    /** Makes a photo primary/the cover photo, whether staged or already persisted. */
+    fun setPrimaryPhoto(photo: PhotoEntry) {
+        val itemId = _state.value.id
+        if (photo.id != null && itemId != null) {
+            viewModelScope.launch { repository.setPrimaryPhoto(itemId, photo.id) }
+        } else {
+            _state.update { current ->
+                current.copy(photos = current.photos.map { it.copy(isPrimary = it.path == photo.path) })
+            }
+        }
     }
 
     fun save() {
@@ -143,11 +169,12 @@ class ItemEditViewModel(
                     updatedAt = System.currentTimeMillis(),
                 )
             )
-            // First save of a brand-new article: register its staged photo in the gallery table too.
-            if (current.id == null && current.stagedImagePath != null) {
-                repository.addPhoto(newId, current.stagedImagePath)
+            // First save of a brand-new article: register every staged photo in the gallery
+            // table too, in the same order (the first one added stays primary via addPhoto).
+            if (current.id == null) {
+                current.photos.forEach { repository.addPhoto(newId, it.path) }
             }
-            _state.value = current.copy(id = newId, saved = true)
+            _state.update { it.copy(id = newId, saved = true) }
         }
     }
 
@@ -171,7 +198,7 @@ class ItemEditViewModel(
                     updatedAt = System.currentTimeMillis(),
                 )
             )
-            _state.value = current.copy(deleted = true)
+            _state.update { it.copy(deleted = true) }
         }
     }
 }

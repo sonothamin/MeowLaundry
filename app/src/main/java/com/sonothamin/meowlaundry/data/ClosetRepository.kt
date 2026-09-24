@@ -95,6 +95,12 @@ class ClosetRepository(
         }
     }
 
+    /** Same as [removePhoto] but looked up by id alone, for callers that only kept the id around. */
+    suspend fun removePhotoById(photoId: Long) {
+        val photo = photoDao.getById(photoId) ?: return
+        removePhoto(photo)
+    }
+
     suspend fun setPrimaryPhoto(itemId: Long, photoId: Long) {
         val photo = photoDao.getForItem(itemId).firstOrNull { it.id == photoId } ?: return
         photoDao.clearPrimary(itemId)

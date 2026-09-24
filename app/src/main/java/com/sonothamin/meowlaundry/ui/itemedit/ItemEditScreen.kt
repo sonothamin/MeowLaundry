@@ -73,7 +73,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.sonothamin.meowlaundry.data.ClothingItemPhoto
 import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -123,8 +122,8 @@ fun ItemEditScreen(
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-    ) { uri -> uri?.let(viewModel::onPhotoPicked) }
+        contract = ActivityResultContracts.GetMultipleContents(),
+    ) { uris -> viewModel.onPhotosPicked(uris) }
 
     Scaffold(
         topBar = {
@@ -171,7 +170,6 @@ fun ItemEditScreen(
             PhotoPicker(
                 primaryImagePath = state.primaryImagePath,
                 photos = state.photos,
-                isNew = state.isNew,
                 onTakePhoto = {
                     val hasPermission = ContextCompat.checkSelfPermission(
                         context,
@@ -184,8 +182,7 @@ fun ItemEditScreen(
                     }
                 },
                 onPickFromGallery = { galleryLauncher.launch("image/*") },
-                onRemoveStagedPhoto = viewModel::removeStagedPhoto,
-                onRemoveGalleryPhoto = viewModel::removeGalleryPhoto,
+                onRemovePhoto = viewModel::removePhoto,
                 onSetPrimary = viewModel::setPrimaryPhoto,
             )
 
@@ -240,13 +237,11 @@ fun ItemEditScreen(
 @Composable
 private fun PhotoPicker(
     primaryImagePath: String?,
-    photos: List<ClothingItemPhoto>,
-    isNew: Boolean,
+    photos: List<PhotoEntry>,
     onTakePhoto: () -> Unit,
     onPickFromGallery: () -> Unit,
-    onRemoveStagedPhoto: () -> Unit,
-    onRemoveGalleryPhoto: (ClothingItemPhoto) -> Unit,
-    onSetPrimary: (ClothingItemPhoto) -> Unit,
+    onRemovePhoto: (PhotoEntry) -> Unit,
+    onSetPrimary: (PhotoEntry) -> Unit,
 ) {
     Card(
         shape = MaterialTheme.shapes.large,
@@ -276,19 +271,19 @@ private fun PhotoPicker(
             }
         }
 
-        // Once an article has more than one photo, this thumbnail strip lets you pick which
-        // one is primary (shown in the closet grid, printed on labels, etc.) or remove any of them.
-        if (photos.size > 1) {
+        // Every photo shows here, whether the article is brand-new (not saved yet) or
+        // already exists - tap a thumbnail to make it primary, or the x to remove it.
+        if (photos.isNotEmpty()) {
             LazyRow(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(Spacing.sm),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                items(photos, key = { it.id }) { photo ->
+                items(photos, key = { it.id ?: it.path }) { photo ->
                     PhotoThumbnail(
                         photo = photo,
                         onClick = { onSetPrimary(photo) },
-                        onRemove = { onRemoveGalleryPhoto(photo) },
+                        onRemove = { onRemovePhoto(photo) },
                     )
                 }
             }
@@ -304,17 +299,10 @@ private fun PhotoPicker(
                     Icon(Icons.Default.PhotoLibrary, contentDescription = null)
                     Text(" Gallery", modifier = Modifier.padding(start = Spacing.xs))
                 }
-                // A brand-new article only has one staged photo (added to the real gallery on
-                // first save), so it gets a plain remove button instead of the thumbnail strip.
-                if (isNew && primaryImagePath != null) {
-                    IconButton(onClick = onRemoveStagedPhoto) {
-                        Icon(Icons.Default.Delete, contentDescription = "Remove photo")
-                    }
-                }
             }
-            if (!isNew) {
+            if (photos.size > 1) {
                 Text(
-                    "Add as many photos as you like. Tap a thumbnail to make it the primary photo.",
+                    "Tap a thumbnail to make it the primary photo.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = Spacing.xs),
@@ -326,7 +314,7 @@ private fun PhotoPicker(
 
 @Composable
 private fun PhotoThumbnail(
-    photo: ClothingItemPhoto,
+    photo: PhotoEntry,
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {

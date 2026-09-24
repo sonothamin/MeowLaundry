@@ -5,7 +5,6 @@ sealed class Destination(val route: String) {
 
     data object Closet : Destination("closet")
     data object Laundry : Destination("laundry")
-    data object History : Destination("history")
     data object Archive : Destination("archive")
     data object Settings : Destination("settings")
 
@@ -27,11 +26,10 @@ sealed class Destination(val route: String) {
     }
 }
 
-/** The four top-level destinations shown in the bottom navigation bar. */
+/** The top-level destinations shown in the bottom navigation bar. */
 val topLevelDestinations = listOf(
     Destination.Closet,
     Destination.Laundry,
-    Destination.History,
     Destination.Archive,
     Destination.Settings,
 )

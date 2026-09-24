@@ -3,7 +3,6 @@ package com.sonothamin.meowlaundry.ui.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalLaundryService
 import androidx.compose.material.icons.filled.Settings
@@ -36,8 +35,6 @@ import com.sonothamin.meowlaundry.ui.articleview.ArticleViewModel
 import com.sonothamin.meowlaundry.ui.articleview.ArticleViewScreen
 import com.sonothamin.meowlaundry.ui.closet.ClosetScreen
 import com.sonothamin.meowlaundry.ui.closet.ClosetViewModel
-import com.sonothamin.meowlaundry.ui.history.HistoryScreen
-import com.sonothamin.meowlaundry.ui.history.HistoryViewModel
 import com.sonothamin.meowlaundry.ui.itemedit.ItemEditScreen
 import com.sonothamin.meowlaundry.ui.itemedit.ItemEditViewModel
 import com.sonothamin.meowlaundry.ui.laundry.LaundryScreen
@@ -56,7 +53,6 @@ private data class TopLevelTab(val destination: Destination, val label: String, 
 private val tabs = listOf(
     TopLevelTab(Destination.Closet, "Closet", Icons.Default.Checkroom),
     TopLevelTab(Destination.Laundry, "Laundry", Icons.Default.LocalLaundryService),
-    TopLevelTab(Destination.History, "History", Icons.Default.History),
     TopLevelTab(Destination.Archive, "Archive", Icons.Default.Inventory2),
     TopLevelTab(Destination.Settings, "Settings", Icons.Default.Settings),
 )
@@ -144,7 +140,9 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
             }
 
             composable(Destination.Laundry.route) {
-                val vm: LaundryViewModel = viewModel(factory = LambdaViewModelFactory { LaundryViewModel(app.repository) })
+                val vm: LaundryViewModel = viewModel(
+                    factory = LambdaViewModelFactory { LaundryViewModel(app.repository, app.printDispatcher) },
+                )
                 LaundryScreen(
                     viewModel = vm,
                     onSendNew = { navController.navigate(Destination.SendToLaundry.route()) },
@@ -185,13 +183,6 @@ fun MeowLaundryNavHost(app: MeowLaundryApp) {
                     },
                 )
                 TicketDetailScreen(viewModel = vm, onBack = { navController.popBackStack() })
-            }
-
-            composable(Destination.History.route) {
-                val vm: HistoryViewModel = viewModel(
-                    factory = LambdaViewModelFactory { HistoryViewModel(app.repository, app.printDispatcher) },
-                )
-                HistoryScreen(viewModel = vm, onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) })
             }
 
             composable(Destination.Archive.route) {

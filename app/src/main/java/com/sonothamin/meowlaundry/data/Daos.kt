@@ -89,6 +89,9 @@ interface ClothingDao {
 
 @Dao
 interface ClothingPhotoDao {
+    @Query("SELECT * FROM clothing_item_photos WHERE id = :id")
+    suspend fun getById(id: Long): ClothingItemPhoto?
+
     @Query("SELECT * FROM clothing_item_photos WHERE clothingItemId = :itemId ORDER BY sortOrder ASC, id ASC")
     fun observeForItem(itemId: Long): Flow<List<ClothingItemPhoto>>
 
