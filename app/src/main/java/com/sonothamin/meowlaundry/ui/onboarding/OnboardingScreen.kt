@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.LocalLaundryService
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Button
@@ -40,11 +41,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import kotlinx.coroutines.launch
+import com.sonothamin.meowlaundry.ui.components.rememberNotificationPermissionRequester
 
 private data class OnboardingPage(
     val icon: ImageVector,
     val title: String,
     val body: String,
+    /** True only for the final "ask for notification permission" step. */
+    val isNotificationStep: Boolean = false,
 )
 
 private val pages = listOf(
@@ -66,6 +70,13 @@ private val pages = listOf(
         body = "Connect a MeowSpool printer over Wi-Fi, or just share the label straight to " +
             "the MeowSpool app - your call, in Settings.",
     ),
+    OnboardingPage(
+        icon = Icons.Default.NotificationsActive,
+        title = "Never miss a pickup",
+        body = "Set a due date on a ticket and MeowLaundry can remind you before it's due. " +
+            "Turn this on now, or skip it and set it up later in Settings.",
+        isNotificationStep = true,
+    ),
 )
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -73,6 +84,9 @@ private val pages = listOf(
 fun OnboardingScreen(onFinished: () -> Unit) {
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
+    val requestNotificationPermission = rememberNotificationPermissionRequester()
+    val onLastPage = pagerState.currentPage == pages.lastIndex
+    val onNotificationStep = pages[pagerState.currentPage].isNotificationStep
 
     Scaffold { padding ->
         Column(
@@ -98,19 +112,32 @@ fun OnboardingScreen(onFinished: () -> Unit) {
 
             Button(
                 onClick = {
-                    val isLast = pagerState.currentPage == pages.lastIndex
-                    if (isLast) {
-                        onFinished()
-                    } else {
-                        scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                    when {
+                        onNotificationStep -> {
+                            requestNotificationPermission()
+                            onFinished()
+                        }
+                        onLastPage -> onFinished()
+                        else -> scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
                     }
                 },
                 shape = MaterialTheme.shapes.extraLarge,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
             ) {
-                Text(if (pagerState.currentPage == pages.lastIndex) "Get started" else "Next")
-                Spacer(modifier = Modifier.padding(start = 4.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                Text(
+                    when {
+                        onNotificationStep -> "Enable notifications"
+                        onLastPage -> "Get started"
+                        else -> "Next"
+                    }
+                )
+                if (!onNotificationStep) {
+                    Spacer(modifier = Modifier.padding(start = 4.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                }
+            }
+            if (onNotificationStep) {
+                TextButton(onClick = onFinished) { Text("Not now") }
             }
             Spacer(modifier = Modifier.height(32.dp))
         }
