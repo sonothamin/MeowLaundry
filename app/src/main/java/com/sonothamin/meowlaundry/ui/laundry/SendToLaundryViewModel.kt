@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -30,6 +31,20 @@ class SendToLaundryViewModel(
 
     private val _providerName = MutableStateFlow("")
     val providerName: StateFlow<String> = _providerName.asStateFlow()
+
+    /** Providers used on past tickets, most recently used first. */
+    private val _providerHistory = MutableStateFlow<List<String>>(emptyList())
+
+    /** Past providers matching what's typed so far, most recently used first, current text excluded. */
+    val providerSuggestions: StateFlow<List<String>> = combine(_providerHistory, _providerName) { history, typed ->
+        history.filter { it.contains(typed.trim(), ignoreCase = true) && !it.equals(typed.trim(), ignoreCase = true) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        viewModelScope.launch {
+            _providerHistory.value = repository.getRecentProviderNames()
+        }
+    }
 
     /** Start of the day the garments are expected back, or null for no due date. */
     private val _dueAt = MutableStateFlow<Long?>(null)

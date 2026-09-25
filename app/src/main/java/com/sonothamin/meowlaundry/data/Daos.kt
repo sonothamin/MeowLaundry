@@ -218,6 +218,20 @@ interface LaundryDao {
     @Query("SELECT * FROM laundry_tickets WHERE id IN (:ids)")
     suspend fun getTicketsByIds(ids: List<Long>): List<LaundryTicket>
 
+    /**
+     * Distinct provider names from past tickets, most recently used first - powers the
+     * "suggest provider from history" autocomplete when creating a new order.
+     */
+    @Query(
+        """
+        SELECT providerName FROM laundry_tickets
+        WHERE providerName IS NOT NULL AND providerName != ''
+        GROUP BY providerName
+        ORDER BY MAX(sentAt) DESC
+        """
+    )
+    suspend fun getDistinctProviderNames(): List<String>
+
     @Insert
     suspend fun insertTicketItems(items: List<LaundryTicketItem>): List<Long>
 

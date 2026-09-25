@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MenuAnchorType
@@ -53,6 +54,7 @@ fun SendToLaundryScreen(
     val selected by viewModel.selected.collectAsStateWithLifecycle()
     val serviceType by viewModel.serviceType.collectAsStateWithLifecycle()
     val providerName by viewModel.providerName.collectAsStateWithLifecycle()
+    val providerSuggestions by viewModel.providerSuggestions.collectAsStateWithLifecycle()
     val dueAt by viewModel.dueAt.collectAsStateWithLifecycle()
     val askNotificationPermission = rememberNotificationPermissionRequester()
     val createdTicketId by viewModel.createdTicketId.collectAsStateWithLifecycle()
@@ -74,12 +76,10 @@ fun SendToLaundryScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 ServiceTypeDropdown(selected = serviceType, onSelect = viewModel::setServiceType)
-                OutlinedTextField(
+                ProviderField(
                     value = providerName,
+                    suggestions = providerSuggestions,
                     onValueChange = viewModel::setProviderName,
-                    label = { Text("Laundry / provider name (optional)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
                 )
                 DueDateChips(
                     dueAt = dueAt,
@@ -121,6 +121,44 @@ fun SendToLaundryScreen(
                 ) {
                     Text("Send ${selected.size} garment(s)")
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Provider name field that suggests providers used on previous orders as the user types, so a
+ * repeat customer of the same laundry doesn't have to retype (or misspell) its name.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProviderField(
+    value: String,
+    suggestions: List<String>,
+    onValueChange: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val showMenu = expanded && suggestions.isNotEmpty()
+    ExposedDropdownMenuBox(expanded = showMenu, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {
+                onValueChange(it)
+                expanded = true
+            },
+            label = { Text("Laundry / provider name (optional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryEditable),
+        )
+        ExposedDropdownMenu(expanded = showMenu, onDismissRequest = { expanded = false }) {
+            suggestions.forEach { name ->
+                DropdownMenuItem(
+                    text = { Text(name) },
+                    onClick = {
+                        onValueChange(name)
+                        expanded = false
+                    },
+                )
             }
         }
     }
