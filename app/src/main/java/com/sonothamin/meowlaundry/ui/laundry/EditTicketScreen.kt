@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ServiceType
 import com.sonothamin.meowlaundry.ui.components.DueDateChips
+import com.sonothamin.meowlaundry.ui.components.SuggestionTextField
 import com.sonothamin.meowlaundry.ui.components.serviceIcon
 import com.sonothamin.meowlaundry.ui.components.serviceLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -66,6 +67,7 @@ fun EditTicketScreen(
     onDone: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val providerSuggestions by viewModel.providerSuggestions.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.saved) {
         if (state.saved) onDone()
@@ -121,13 +123,13 @@ fun EditTicketScreen(
                         }
                     }
 
-                    OutlinedTextField(
+                    SuggestionTextField(
                         value = state.providerName,
                         onValueChange = viewModel::onProviderNameChange,
-                        label = { Text("Laundry / provider name") },
-                        placeholder = { Text("Optional") },
+                        label = "Laundry / provider name",
+                        placeholder = "Optional",
+                        suggestions = providerSuggestions,
                         leadingIcon = { Icon(Icons.Default.Storefront, contentDescription = null) },
-                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
