@@ -1,18 +1,14 @@
 package com.sonothamin.meowlaundry.ui.laundry
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,11 +18,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +34,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,7 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ServiceType
@@ -140,10 +135,11 @@ fun EditTicketScreen(
 
             DueDateChips(dueAt = state.dueAt, onChange = viewModel::onDueAtChange)
 
-            GarmentsSection(
-                garments = state.garments,
+            ItemsSection(
+                added = state.garments,
+                availableToAdd = state.availableToAdd,
+                onAdd = viewModel::addGarment,
                 onRemove = viewModel::removeGarment,
-                onAddClick = viewModel::openAddPicker,
             )
 
             OutlinedTextField(
@@ -156,155 +152,153 @@ fun EditTicketScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-
-        if (state.showAddPicker) {
-            AddGarmentDialog(
-                available = state.availableToAdd,
-                onDismiss = viewModel::dismissAddPicker,
-                onConfirm = viewModel::addGarments,
-            )
-        }
     }
 }
 
+/**
+ * Which garments are on this ticket, collapsed by default so it doesn't dominate the screen.
+ * Two subsections: "Added" (on the ticket - removable unless already returned/lost) and
+ * "Can be added" (everything else currently in the closet - one tap adds it, no separate dialog).
+ */
 @Composable
-private fun GarmentsSection(
-    garments: List<TicketGarment>,
+private fun ItemsSection(
+    added: List<TicketGarment>,
+    availableToAdd: List<ClothingItem>,
+    onAdd: (Long) -> Unit,
     onRemove: (Long) -> Unit,
-    onAddClick: () -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(true) }
+
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(modifier = Modifier.fillMaxWidth().padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Garments", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.fillMaxWidth().animateContentSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Checkroom,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
                 Text(
-                    "${garments.size}",
+                    "Items",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(start = Spacing.sm).weight(1f),
+                )
+                Text(
+                    "${added.size}",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = Spacing.xs).size(20.dp),
+                )
             }
 
-            if (garments.isEmpty()) {
-                Text(
-                    "No garments on this ticket.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                garments.forEach { garment ->
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Checkroom,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Column(modifier = Modifier.weight(1f).padding(start = Spacing.sm)) {
-                            Text(
-                                garment.item.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (!garment.removable) {
-                                Text(
-                                    if (garment.lost) "Lost" else "Returned",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+            if (expanded) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
+                    GarmentSubsection(title = "Added (${added.size})") {
+                        if (added.isEmpty()) {
+                            EmptyRow("No garments on this ticket yet.")
+                        } else {
+                            added.forEach { garment ->
+                                AddedGarmentRow(garment = garment, onRemove = { onRemove(garment.item.id) })
                             }
                         }
-                        if (garment.removable) {
-                            IconButton(onClick = { onRemove(garment.item.id) }) {
-                                Icon(Icons.Default.Close, contentDescription = "Remove ${garment.item.title}")
+                    }
+
+                    GarmentSubsection(title = "Can be added (${availableToAdd.size})", topSpacing = Spacing.md) {
+                        if (availableToAdd.isEmpty()) {
+                            EmptyRow("Nothing else in your closet right now.")
+                        } else {
+                            availableToAdd.forEach { item ->
+                                AvailableGarmentRow(item = item, onAdd = { onAdd(item.id) })
                             }
                         }
                     }
                 }
-            }
-
-            TextButton(onClick = onAddClick, modifier = Modifier.align(Alignment.End)) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(Spacing.xs))
-                Text("Add garment")
             }
         }
     }
 }
 
 @Composable
-private fun AddGarmentDialog(
-    available: List<ClothingItem>,
-    onDismiss: () -> Unit,
-    onConfirm: (Set<Long>) -> Unit,
+private fun GarmentSubsection(
+    title: String,
+    topSpacing: androidx.compose.ui.unit.Dp = 0.dp,
+    content: @Composable () -> Unit,
 ) {
-    var selected by remember { mutableStateOf(emptySet<Long>()) }
+    Column(modifier = Modifier.fillMaxWidth().padding(top = topSpacing)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = Spacing.xs),
+        )
+        content()
+    }
+}
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 6.dp,
-        ) {
-            Column(modifier = Modifier.padding(Spacing.lg)) {
-                Text("Add garments", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Only garments currently in your closet can be added.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp, bottom = Spacing.md),
-                )
+@Composable
+private fun EmptyRow(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = Spacing.xs),
+    )
+}
 
-                if (available.isEmpty()) {
-                    Text(
-                        "Everything in your closet is already out at the laundry.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = Spacing.md),
-                    )
-                } else {
-                    LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                        items(available, key = { it.id }) { item ->
-                            val isSelected = item.id in selected
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selected = if (isSelected) selected - item.id else selected + item.id
-                                    }
-                                    .padding(vertical = Spacing.xs),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Checkbox(
-                                    checked = isSelected,
-                                    onCheckedChange = { checked ->
-                                        selected = if (checked) selected + item.id else selected - item.id
-                                    },
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        item.type.name.lowercase().replaceFirstChar { it.uppercase() },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.md),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
-                    FilledTonalButton(
-                        onClick = { onConfirm(selected) },
-                        enabled = selected.isNotEmpty(),
-                        modifier = Modifier.weight(1f),
-                    ) { Text(if (selected.isEmpty()) "Add" else "Add ${selected.size}") }
-                }
+@Composable
+private fun AddedGarmentRow(garment: TicketGarment, onRemove: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                garment.item.title,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                if (garment.removable) garmentTypeLabel(garment.item) else if (garment.lost) "Lost" else "Returned",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (garment.removable) {
+            IconButton(onClick = onRemove) {
+                Icon(Icons.Default.Close, contentDescription = "Remove ${garment.item.title}")
             }
         }
     }
 }
+
+@Composable
+private fun AvailableGarmentRow(item: ClothingItem, onAdd: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(garmentTypeLabel(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        IconButton(onClick = onAdd) {
+            Icon(Icons.Default.Add, contentDescription = "Add ${item.title}")
+        }
+    }
+}
+
+private fun garmentTypeLabel(item: ClothingItem): String =
+    item.type.name.lowercase().replaceFirstChar { it.uppercase() }

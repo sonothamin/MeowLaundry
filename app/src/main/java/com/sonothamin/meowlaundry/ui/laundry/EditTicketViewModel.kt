@@ -31,7 +31,6 @@ data class EditTicketUiState(
     val notes: String = "",
     val garments: List<TicketGarment> = emptyList(),
     val availableToAdd: List<ClothingItem> = emptyList(),
-    val showAddPicker: Boolean = false,
     val saved: Boolean = false,
 ) {
     // A ticket always has a service type, so there's nothing to actually invalidate here -
@@ -85,17 +84,10 @@ class EditTicketViewModel(
     fun onDueAtChange(value: Long?) = _state.update { it.copy(dueAt = value) }
     fun onNotesChange(value: String) = _state.update { it.copy(notes = value) }
 
-    fun openAddPicker() = _state.update { it.copy(showAddPicker = true) }
-    fun dismissAddPicker() = _state.update { it.copy(showAddPicker = false) }
-
-    fun addGarments(clothingItemIds: Set<Long>) {
-        if (clothingItemIds.isEmpty()) {
-            dismissAddPicker()
-            return
-        }
+    /** Adds one closet garment to the ticket directly - no separate picker, tap it and it's on. */
+    fun addGarment(clothingItemId: Long) {
         viewModelScope.launch {
-            repository.addGarmentsToTicket(ticketId, clothingItemIds.toList())
-            _state.update { it.copy(showAddPicker = false) }
+            repository.addGarmentsToTicket(ticketId, listOf(clothingItemId))
         }
     }
 
