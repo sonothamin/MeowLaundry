@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Preview
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
@@ -76,6 +78,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.sonothamin.meowlaundry.data.ArchiveReason
@@ -281,26 +284,89 @@ fun TicketDetailScreen(
     }
 
     state.previewBitmap?.let { bitmap ->
-        AlertDialog(
-            onDismissRequest = viewModel::dismissPreview,
-            title = { Text("Label preview") },
-            text = {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Rendered ticket label preview",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 320.dp)
-                        .verticalScroll(rememberScrollState()),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.dismissPreview(); viewModel.printTicket() }) { Text("Print") }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissPreview) { Text("Close") }
-            },
+        LabelPreviewDialog(
+            bitmap = bitmap,
+            onDismiss = viewModel::dismissPreview,
+            onPrint = { viewModel.dismissPreview(); viewModel.printTicket() },
         )
+    }
+}
+
+/**
+ * Shows the rendered thermal label the way it'll actually look on paper: the bitmap sits on its
+ * own white "receipt" strip with a soft shadow and a light frame, inside a rounded sheet, rather
+ * than as a small image squeezed into a generic alert box.
+ */
+@Composable
+private fun LabelPreviewDialog(
+    bitmap: android.graphics.Bitmap,
+    onDismiss: () -> Unit,
+    onPrint: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(Spacing.lg),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Receipt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Text(
+                        "Label preview",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(start = Spacing.sm).weight(1f),
+                    )
+                }
+                Text(
+                    "This is exactly what will come out of the printer.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = Spacing.md),
+                )
+
+                // Receipt strip: a fixed-width white card, its own shadow, sitting on the dialog's
+                // tonal background so it reads as "paper" rather than a plain inline image.
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = Color.White,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.widthIn(max = 260.dp),
+                ) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "Rendered ticket label preview",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                            .verticalScroll(rememberScrollState()),
+                        contentScale = ContentScale.FillWidth,
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Close") }
+                    FilledTonalButton(onClick = onPrint, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("Print", modifier = Modifier.padding(start = Spacing.sm))
+                    }
+                }
+            }
+        }
     }
 }
 
