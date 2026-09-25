@@ -290,6 +290,9 @@ class ClosetRepository(
 
     suspend fun getTicketsByIds(ids: List<Long>): List<LaundryTicket> = laundryDao.getTicketsByIds(ids)
 
+    /** Provider names used before, most recently used first, for the order-creation autocomplete. */
+    suspend fun getRecentProviderNames(): List<String> = laundryDao.getDistinctProviderNames()
+
     /** Deletes only the CLOSED tickets among [ids]; returns how many were removed. */
     suspend fun deleteClosedTicketsByIds(ids: List<Long>): Int =
         if (ids.isEmpty()) 0 else laundryDao.deleteClosedTicketsAmong(ids)

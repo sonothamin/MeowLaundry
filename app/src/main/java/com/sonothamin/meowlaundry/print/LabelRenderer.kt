@@ -114,6 +114,63 @@ object LabelRenderer {
         return bitmap
     }
 
+    /**
+     * Stitches several already-rendered labels into a single tall bitmap, separated by a
+     * perforation line (punched holes plus a dashed cut line). MeowSpool's share target only
+     * accepts one image per share intent, so a multiselect "print" that goes through the share
+     * path renders every ticket onto one strip instead, which the user tears apart after
+     * printing - same as a real perforated receipt roll.
+     */
+    fun combineWithPerforation(bitmaps: List<Bitmap>): Bitmap {
+        if (bitmaps.isEmpty()) return Bitmap.createBitmap(WIDTH, 1, Bitmap.Config.ARGB_8888)
+        if (bitmaps.size == 1) return bitmaps.first()
+
+        val width = bitmaps.maxOf { it.width }
+        val perforationHeight = 34
+        val totalHeight = bitmaps.sumOf { it.height } + perforationHeight * (bitmaps.size - 1)
+
+        val combined = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(combined)
+        canvas.drawColor(Color.WHITE)
+
+        var y = 0
+        bitmaps.forEachIndexed { index, bmp ->
+            canvas.drawBitmap(bmp, 0f, y.toFloat(), null)
+            y += bmp.height
+            if (index != bitmaps.lastIndex) {
+                y = canvas.drawPerforationLine(y, width, perforationHeight)
+            }
+        }
+        return combined
+    }
+
+    /** Draws a "tear here" perforation (punched holes + dashed cut line) and returns the next cursor Y. */
+    private fun Canvas.drawPerforationLine(y: Int, width: Int, bandHeight: Int): Int {
+        val lineY = y + bandHeight / 2
+        val holePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(225, 225, 225) }
+        val dashPaint = Paint().apply { color = Color.rgb(120, 120, 120); strokeWidth = 2f }
+
+        var hx = 9
+        while (hx < width - 9) {
+            drawCircle(hx.toFloat(), lineY.toFloat(), 4f, holePaint)
+            hx += 18
+        }
+
+        val dash = 9
+        val gap = 7
+        var x = MARGIN
+        while (x < width - MARGIN) {
+            val end = (x + dash).coerceAtMost(width - MARGIN)
+            drawLine(x.toFloat(), lineY.toFloat(), end.toFloat(), lineY.toFloat(), dashPaint)
+            x += dash + gap
+        }
+
+        val scissorsPaint = textPaint(size = 16f, color = Color.rgb(120, 120, 120), align = Paint.Align.CENTER)
+        drawText("✂", width / 2f, lineY + 5f, scissorsPaint)
+
+        return y + bandHeight
+    }
+
     private fun textPaint(size: Float, bold: Boolean = false, color: Int = Color.BLACK, align: Paint.Align = Paint.Align.LEFT) =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color

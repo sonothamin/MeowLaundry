@@ -68,25 +68,23 @@ class PrintDispatcher(
         }
     }
 
-    /** Builds (without launching) the MeowSpool share intent, e.g. for a "share" action. */
+    /**
+     * Builds (without launching) the MeowSpool share intent, e.g. for a "share" action.
+     *
+     * MeowSpool's SEND intent filter only accepts a single image - it doesn't support
+     * ACTION_SEND_MULTIPLE - so for a multiselect print we stitch every label into one tall
+     * bitmap with perforation lines between them (see [LabelRenderer.combineWithPerforation])
+     * and share that as a single image instead.
+     */
     fun buildShareIntent(bitmaps: List<Bitmap>): Intent {
+        val combined = LabelRenderer.combineWithPerforation(bitmaps)
         val cacheDir = File(context.cacheDir, "print_share").apply { mkdirs() }
-        val timestamp = System.currentTimeMillis()
-        val uris = bitmaps.mapIndexed { index, bmp ->
-            val file = File(cacheDir, "label_${timestamp}_$index.png")
-            FileOutputStream(file).use { out -> bmp.compress(Bitmap.CompressFormat.PNG, 100, out) }
-            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        }
-        val intent = if (uris.size == 1) {
-            Intent(Intent.ACTION_SEND).apply {
-                putExtra(Intent.EXTRA_STREAM, uris.first())
-            }
-        } else {
-            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-            }
-        }
-        return intent.apply {
+        val file = File(cacheDir, "label_${System.currentTimeMillis()}.png")
+        FileOutputStream(file).use { out -> combined.compress(Bitmap.CompressFormat.PNG, 100, out) }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+
+        return Intent(Intent.ACTION_SEND).apply {
+            putExtra(Intent.EXTRA_STREAM, uri)
             type = "image/png"
             setPackage(MEOWSPOOL_PACKAGE)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
