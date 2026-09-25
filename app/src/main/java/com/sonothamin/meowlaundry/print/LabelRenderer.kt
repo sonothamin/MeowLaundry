@@ -34,7 +34,7 @@ object LabelRenderer {
     }
 
     fun renderTicket(ticket: LaundryTicket, garments: List<ClothingItem>): Bitmap {
-        val titlePaint = textPaint(size = 30f, bold = true)
+        val titlePaint = textPaint(size = 30f, bold = true, align = Paint.Align.CENTER)
         val servicePaint = textPaint(size = 26f, bold = true)
         val metaPaint = textPaint(size = 19f, align = Paint.Align.CENTER)
         val indexPaint = textPaint(size = 23f, bold = true)
@@ -122,8 +122,13 @@ object LabelRenderer {
             if (bold) typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
         }
 
+    // Draws at the canvas's horizontal center regardless of the paint's own alignment, so a
+    // caller that forgets to set Paint.Align.CENTER can't silently clip text off the label edge.
     private fun Canvas.drawCenteredText(text: String, y: Float, paint: Paint) {
+        val original = paint.textAlign
+        paint.textAlign = Paint.Align.CENTER
         drawText(text, WIDTH / 2f, y, paint)
+        paint.textAlign = original
     }
 
     /** Draws a dashed rule (a quieter section break than a solid bar) and returns the next cursor Y. */
