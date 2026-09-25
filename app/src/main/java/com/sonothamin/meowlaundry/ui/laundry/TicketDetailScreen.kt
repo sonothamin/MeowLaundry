@@ -110,6 +110,7 @@ import java.util.Locale
 fun TicketDetailScreen(
     viewModel: TicketDetailViewModel,
     onBack: () -> Unit,
+    onEdit: (Long) -> Unit,
     onClosed: () -> Unit = onBack,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -142,6 +143,11 @@ fun TicketDetailScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
+                    if (ticket != null) {
+                        IconButton(onClick = { onEdit(ticket.id) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit ticket")
+                        }
+                    }
                     IconButton(onClick = viewModel::previewTicket, enabled = !state.isPrinting) {
                         Icon(Icons.Default.Preview, contentDescription = "Preview label")
                     }

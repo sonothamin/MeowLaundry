@@ -45,6 +45,8 @@ import com.sonothamin.meowlaundry.ui.closet.ClosetScreen
 import com.sonothamin.meowlaundry.ui.closet.ClosetViewModel
 import com.sonothamin.meowlaundry.ui.itemedit.ItemEditScreen
 import com.sonothamin.meowlaundry.ui.itemedit.ItemEditViewModel
+import com.sonothamin.meowlaundry.ui.laundry.EditTicketScreen
+import com.sonothamin.meowlaundry.ui.laundry.EditTicketViewModel
 import com.sonothamin.meowlaundry.ui.laundry.LaundryScreen
 import com.sonothamin.meowlaundry.ui.laundry.LaundryViewModel
 import com.sonothamin.meowlaundry.ui.laundry.SendToLaundryScreen
@@ -263,6 +265,7 @@ fun MeowLaundryNavHost(
                 TicketDetailScreen(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
+                    onEdit = { id -> navController.navigate(Destination.EditTicket.route(id)) },
                     // A closed ticket has nothing left to do, so leave for the previous page and
                     // confirm there with a snackbar rather than stranding the user on a dead screen.
                     onClosed = {
@@ -273,6 +276,17 @@ fun MeowLaundryNavHost(
                         navController.popBackStack()
                     },
                 )
+            }
+
+            composable(
+                route = Destination.EditTicket.route,
+                arguments = listOf(navArgument("ticketId") { type = NavType.LongType }),
+            ) { backStackEntry ->
+                val ticketId = backStackEntry.arguments?.getLong("ticketId") ?: return@composable
+                val vm: EditTicketViewModel = viewModel(
+                    factory = LambdaViewModelFactory { EditTicketViewModel(app.repository, ticketId) },
+                )
+                EditTicketScreen(viewModel = vm, onDone = { navController.popBackStack() })
             }
 
             composable(Destination.Archive.route) {

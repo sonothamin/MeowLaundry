@@ -25,6 +25,9 @@ sealed class Destination(val route: String) {
     data object TicketDetail : Destination("laundry/ticket/{ticketId}") {
         fun route(ticketId: Long) = "laundry/ticket/$ticketId"
     }
+    data object EditTicket : Destination("laundry/ticket/{ticketId}/edit") {
+        fun route(ticketId: Long) = "laundry/ticket/$ticketId/edit"
+    }
 }
 
 /** The top-level destinations shown in the bottom navigation bar. */

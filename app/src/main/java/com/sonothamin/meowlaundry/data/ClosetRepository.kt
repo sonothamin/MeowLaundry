@@ -165,6 +165,9 @@ class ClosetRepository(
     /** Sets, changes (or with null, clears) the day a ticket is expected back. */
     suspend fun setExpectedReturn(ticketId: Long, at: Long?) = laundryDao.setExpectedReturn(ticketId, at)
 
+    /** Updates a ticket's editable fields (service, provider, due date, notes). */
+    suspend fun updateTicket(ticket: LaundryTicket) = laundryDao.updateTicket(ticket)
+
     suspend fun getOpenTicketsWithDueDate(): List<LaundryTicket> = laundryDao.getOpenTicketsWithDueDate()
 
     suspend fun getGarmentsForIds(ids: List<Long>): List<ClothingItem> =
