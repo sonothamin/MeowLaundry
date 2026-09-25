@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Icon
@@ -82,7 +83,8 @@ fun LaundryScreen(
     onFlashShown: () -> Unit = {},
 ) {
     val tickets by viewModel.tickets.collectAsStateWithLifecycle()
-    val overviews by viewModel.overviews.collectAsStateWithLifecycle()
+    val filteredOverviews by viewModel.filteredOverviews.collectAsStateWithLifecycle()
+    val ticketFilter by viewModel.ticketFilter.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     // The extended FAB collapses to an icon once the list scrolls, out of the way of the cards.
@@ -190,44 +192,39 @@ fun LaundryScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        if (tickets.isEmpty()) {
-            EmptyState(
-                icon = Icons.Default.LocalLaundryService,
-                title = "Nothing here yet",
-                subtitle = "Tap + to send clothes to the wash or press.",
-                modifier = Modifier.padding(padding),
-            )
-        } else {
-            val (closedTickets, activeTickets) = remember(overviews) {
-                overviews.partition { it.ticket.status == TicketStatus.CLOSED }
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (!selectionMode) {
+                TicketFilterRow(selected = ticketFilter, onSelect = viewModel::setTicketFilter)
             }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                // extra bottom room so the FAB never covers the last card
-                contentPadding = PaddingValues(start = Spacing.md, end = Spacing.md, top = Spacing.sm, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                if (overdueCount > 0 && !selectionMode) {
-                    item(key = "overdue-banner") { OverdueBanner(overdueCount) }
-                }
-                if (activeTickets.isNotEmpty()) {
-                    item(key = "header-active") { SectionHeader("At the laundry", activeTickets.size) }
-                    items(activeTickets, key = { it.ticket.id }) { overview ->
-                        TicketCard(
-                            overview = overview,
-                            selected = overview.ticket.id in selectedIds,
-                            onClick = {
-                                if (selectionMode) viewModel.toggleSelection(overview.ticket.id) else onOpenTicket(overview.ticket.id)
-                            },
-                            onLongClick = { viewModel.startSelection(overview.ticket.id) },
-                            modifier = Modifier.animateItem(),
-                        )
+
+            if (tickets.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Default.LocalLaundryService,
+                    title = "Nothing here yet",
+                    subtitle = "Tap + to send clothes to the wash or press.",
+                )
+            } else if (filteredOverviews.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Default.LocalLaundryService,
+                    title = if (ticketFilter == TicketFilter.CLOSED) "No history yet" else "Nothing active",
+                    subtitle = if (ticketFilter == TicketFilter.CLOSED) {
+                        "Tickets show up here once they're closed."
+                    } else {
+                        "Nothing is out at the laundry right now."
+                    },
+                )
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    // extra bottom room so the FAB never covers the last card
+                    contentPadding = PaddingValues(start = Spacing.md, end = Spacing.md, top = Spacing.sm, bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    if (overdueCount > 0 && !selectionMode && ticketFilter != TicketFilter.CLOSED) {
+                        item(key = "overdue-banner") { OverdueBanner(overdueCount) }
                     }
-                }
-                if (closedTickets.isNotEmpty()) {
-                    item(key = "header-closed") { SectionHeader("History", closedTickets.size) }
-                    items(closedTickets, key = { it.ticket.id }) { overview ->
+                    items(filteredOverviews, key = { it.ticket.id }) { overview ->
                         TicketCard(
                             overview = overview,
                             selected = overview.ticket.id in selectedIds,
@@ -275,21 +272,26 @@ fun LaundryScreen(
 }
 
 @Composable
-private fun SectionHeader(title: String, count: Int) {
+private fun TicketFilterRow(selected: TicketFilter, onSelect: (TicketFilter) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = Spacing.sm, top = Spacing.md, bottom = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-            Text(
-                count.toString(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 2.dp),
-            )
-        }
+        FilterChip(
+            selected = selected == TicketFilter.ACTIVE,
+            onClick = { onSelect(TicketFilter.ACTIVE) },
+            label = { Text("Active") },
+        )
+        FilterChip(
+            selected = selected == TicketFilter.CLOSED,
+            onClick = { onSelect(TicketFilter.CLOSED) },
+            label = { Text("Closed") },
+        )
+        FilterChip(
+            selected = selected == TicketFilter.ALL,
+            onClick = { onSelect(TicketFilter.ALL) },
+            label = { Text("All") },
+        )
     }
 }
 

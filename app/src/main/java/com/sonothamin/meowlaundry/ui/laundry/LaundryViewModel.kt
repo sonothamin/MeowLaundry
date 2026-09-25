@@ -20,6 +20,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** Which tickets the list shows. Defaults to Active: the history is one tap away, not the default view. */
+enum class TicketFilter { ACTIVE, CLOSED, ALL }
+
 /** One-shot events the screen must act on (launching a share/print intent, showing a message). */
 sealed class LaundryEvent {
     data class LaunchIntent(val intent: android.content.Intent, val chooserTitle: String) : LaundryEvent()
@@ -52,6 +55,14 @@ class LaundryViewModel(
     val tickets: StateFlow<List<LaundryTicket>> = repository.observeAllTickets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _ticketFilter = MutableStateFlow(TicketFilter.ACTIVE)
+    val ticketFilter: StateFlow<TicketFilter> = _ticketFilter
+
+    fun setTicketFilter(filter: TicketFilter) {
+        _ticketFilter.value = filter
+    }
+
+    /** Unfiltered: used for the overdue banner, the "clear history" action and its counts. */
     val overviews: StateFlow<List<TicketOverview>> = combine(
         repository.observeAllTickets(),
         repository.observeAllTicketItems(),
@@ -68,6 +79,15 @@ class LaundryViewModel(
                 lost = its.count { it.lost },
                 thumbs = its.take(MAX_THUMBS).map { imageById[it.clothingItemId] },
             )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** What the list actually renders, narrowed by [ticketFilter]. */
+    val filteredOverviews: StateFlow<List<TicketOverview>> = combine(overviews, _ticketFilter) { all, filter ->
+        when (filter) {
+            TicketFilter.ACTIVE -> all.filter { it.ticket.status != com.sonothamin.meowlaundry.data.TicketStatus.CLOSED }
+            TicketFilter.CLOSED -> all.filter { it.ticket.status == com.sonothamin.meowlaundry.data.TicketStatus.CLOSED }
+            TicketFilter.ALL -> all
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -88,8 +108,9 @@ class LaundryViewModel(
         _selectedIds.value = setOf(id)
     }
 
+    /** Selects everything currently visible under the active filter, not the whole history. */
     fun selectAll() {
-        _selectedIds.value = tickets.value.map { it.id }.toSet()
+        _selectedIds.value = filteredOverviews.value.map { it.ticket.id }.toSet()
     }
 
     fun clearSelection() {
