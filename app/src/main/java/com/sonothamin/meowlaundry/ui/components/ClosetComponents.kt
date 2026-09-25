@@ -17,18 +17,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.LocalLaundryService
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,12 +48,28 @@ fun statusColor(status: ClothingStatus): Color = when (status) {
     ClothingStatus.ARCHIVED -> MaterialTheme.colorScheme.surfaceVariant
 }
 
+// Paired "on" color for each status container above, so the icon always meets
+// contrast guidelines against its badge background regardless of theme.
 @Composable
+fun statusContentColor(status: ClothingStatus): Color = when (status) {
+    ClothingStatus.IN_CLOSET -> MaterialTheme.colorScheme.onTertiaryContainer
+    ClothingStatus.AT_LAUNDRY -> MaterialTheme.colorScheme.onPrimaryContainer
+    ClothingStatus.LOST -> MaterialTheme.colorScheme.onErrorContainer
+    ClothingStatus.ARCHIVED -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
 fun statusLabel(status: ClothingStatus): String = when (status) {
     ClothingStatus.IN_CLOSET -> "In closet"
     ClothingStatus.AT_LAUNDRY -> "At laundry"
     ClothingStatus.LOST -> "Lost"
     ClothingStatus.ARCHIVED -> "Archived"
+}
+
+fun statusIcon(status: ClothingStatus): ImageVector = when (status) {
+    ClothingStatus.IN_CLOSET -> Icons.Filled.Checkroom
+    ClothingStatus.AT_LAUNDRY -> Icons.Filled.LocalLaundryService
+    ClothingStatus.LOST -> Icons.Filled.ReportProblem
+    ClothingStatus.ARCHIVED -> Icons.Filled.Inventory2
 }
 
 fun archiveReasonLabel(reason: ArchiveReason): String = when (reason) {
@@ -65,16 +83,24 @@ fun archiveReasonLabel(reason: ArchiveReason): String = when (reason) {
 
 @Composable
 fun StatusChip(status: ClothingStatus, modifier: Modifier = Modifier) {
-    SuggestionChip(
-        onClick = {},
-        enabled = false,
-        modifier = modifier,
-        label = { Text(statusLabel(status)) },
-        colors = SuggestionChipDefaults.suggestionChipColors(
-            disabledContainerColor = statusColor(status),
-            disabledLabelColor = MaterialTheme.colorScheme.onSurface,
-        ),
-    )
+    // An icon-only badge instead of a text chip: it reads at a glance and,
+    // by using the theme's onXContainer color, always has enough contrast
+    // against its container color (a Material3 disabled chip's dimmed text
+    // did not). contentDescription keeps the status readable for screen readers.
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(statusColor(status)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = statusIcon(status),
+            contentDescription = statusLabel(status),
+            tint = statusContentColor(status),
+            modifier = Modifier.size(18.dp),
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
