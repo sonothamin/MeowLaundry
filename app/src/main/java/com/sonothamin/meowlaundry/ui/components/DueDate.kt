@@ -4,8 +4,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
@@ -139,6 +141,9 @@ fun DueDateChips(
                 label = { Text(if (!isPreset && dueAt != null) DueDates.format(dueAt) else "Pick date") },
                 leadingIcon = { Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
+            // Matches the row's own leading inset, so the last chip doesn't sit flush against
+            // the screen edge when scrolled all the way - without this it reads as clipped.
+            Spacer(modifier = Modifier.width(Spacing.md))
         }
     }
 

@@ -3,12 +3,25 @@ package com.sonothamin.meowlaundry.ui.laundry
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sonothamin.meowlaundry.data.ClosetRepository
+import com.sonothamin.meowlaundry.data.ClothingItem
+import com.sonothamin.meowlaundry.data.ClothingStatus
+import com.sonothamin.meowlaundry.data.LaundryTicketItem
 import com.sonothamin.meowlaundry.data.ServiceType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** One garment on the ticket, together with whether it's still pending or already decided. */
+data class TicketGarment(
+    val item: ClothingItem,
+    val returned: Boolean,
+    val lost: Boolean,
+) {
+    val removable: Boolean get() = !returned && !lost
+}
 
 data class EditTicketUiState(
     val loaded: Boolean = false,
@@ -16,6 +29,9 @@ data class EditTicketUiState(
     val providerName: String = "",
     val dueAt: Long? = null,
     val notes: String = "",
+    val garments: List<TicketGarment> = emptyList(),
+    val availableToAdd: List<ClothingItem> = emptyList(),
+    val showAddPicker: Boolean = false,
     val saved: Boolean = false,
 ) {
     // A ticket always has a service type, so there's nothing to actually invalidate here -
@@ -44,12 +60,50 @@ class EditTicketViewModel(
                 )
             }
         }
+        // Garments currently on the ticket (with their pending/returned/lost state) and the
+        // closet items free to be added to it - both update live as the user adds/removes.
+        viewModelScope.launch {
+            combine(
+                repository.observeItemsForTicket(ticketId),
+                repository.observeGarmentsForTicket(ticketId),
+                repository.observeClothingByStatus(ClothingStatus.IN_CLOSET),
+            ) { ticketItems, garments, inCloset ->
+                val itemsById = ticketItems.associateBy(LaundryTicketItem::clothingItemId)
+                val ticketGarments = garments.map { garment ->
+                    val ticketItem = itemsById[garment.id]
+                    TicketGarment(item = garment, returned = ticketItem?.returned ?: false, lost = ticketItem?.lost ?: false)
+                }
+                ticketGarments to inCloset
+            }.collect { (ticketGarments, inCloset) ->
+                _state.update { it.copy(garments = ticketGarments, availableToAdd = inCloset) }
+            }
+        }
     }
 
     fun onServiceTypeChange(value: ServiceType) = _state.update { it.copy(serviceType = value) }
     fun onProviderNameChange(value: String) = _state.update { it.copy(providerName = value) }
     fun onDueAtChange(value: Long?) = _state.update { it.copy(dueAt = value) }
     fun onNotesChange(value: String) = _state.update { it.copy(notes = value) }
+
+    fun openAddPicker() = _state.update { it.copy(showAddPicker = true) }
+    fun dismissAddPicker() = _state.update { it.copy(showAddPicker = false) }
+
+    fun addGarments(clothingItemIds: Set<Long>) {
+        if (clothingItemIds.isEmpty()) {
+            dismissAddPicker()
+            return
+        }
+        viewModelScope.launch {
+            repository.addGarmentsToTicket(ticketId, clothingItemIds.toList())
+            _state.update { it.copy(showAddPicker = false) }
+        }
+    }
+
+    fun removeGarment(clothingItemId: Long) {
+        viewModelScope.launch {
+            repository.removeGarmentFromTicket(ticketId, clothingItemId)
+        }
+    }
 
     fun save() {
         val current = _state.value

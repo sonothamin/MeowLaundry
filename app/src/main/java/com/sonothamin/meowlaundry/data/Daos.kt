@@ -236,6 +236,9 @@ interface LaundryDao {
     @Query("DELETE FROM laundry_ticket_items WHERE ticketId IN (:ticketIds)")
     suspend fun deleteTicketItemsByTicketIds(ticketIds: List<Long>)
 
+    @Query("DELETE FROM laundry_ticket_items WHERE ticketId = :ticketId AND clothingItemId = :clothingItemId")
+    suspend fun deleteTicketItem(ticketId: Long, clothingItemId: Long)
+
     @Query("SELECT id FROM laundry_tickets WHERE status = 'CLOSED'")
     suspend fun getClosedTicketIds(): List<Long>
 

@@ -177,6 +177,28 @@ class ClosetRepository(
     suspend fun sendToLaundry(ticket: LaundryTicket, clothingItemIds: List<Long>): Long =
         laundryDao.createTicketWithItems(ticket, clothingItemIds, clothingDao)
 
+    /** Adds more garments to a ticket that's already been sent, e.g. fixing a mistake in Edit ticket. */
+    suspend fun addGarmentsToTicket(ticketId: Long, clothingItemIds: List<Long>) {
+        if (clothingItemIds.isEmpty()) return
+        val items = clothingItemIds.map { LaundryTicketItem(ticketId = ticketId, clothingItemId = it) }
+        laundryDao.insertTicketItems(items)
+        clothingDao.setStatusForAll(clothingItemIds, ClothingStatus.AT_LAUNDRY)
+    }
+
+    /**
+     * Takes a garment off a ticket, e.g. it was added by mistake. A garment whose return/lost
+     * decision was already recorded on this ticket keeps that status; only a still-pending
+     * garment goes back to IN_CLOSET.
+     */
+    suspend fun removeGarmentFromTicket(ticketId: Long, clothingItemId: Long) {
+        val item = laundryDao.getItemsForTicket(ticketId).firstOrNull { it.clothingItemId == clothingItemId }
+            ?: return
+        laundryDao.deleteTicketItem(ticketId, clothingItemId)
+        if (!item.returned && !item.lost) {
+            clothingDao.setStatus(clothingItemId, ClothingStatus.IN_CLOSET)
+        }
+    }
+
     /**
      * Records the laundry's answer for a ticket: each garment is either returned (back to
      * IN_CLOSET) or lost (flagged LOST, so its price counts toward the "lost value" total).
