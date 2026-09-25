@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,10 +27,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,6 +57,8 @@ import java.util.Locale
 fun ArchiveScreen(
     viewModel: ArchiveViewModel,
     onOpenItem: (Long) -> Unit,
+    /** Opens the nav drawer. Null hides the hamburger icon. */
+    onMenuClick: (() -> Unit)? = null,
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val reasonFilter by viewModel.reasonFilter.collectAsStateWithLifecycle()
@@ -63,7 +66,19 @@ fun ArchiveScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = { LargeTopAppBar(title = { Text("Archive") }, scrollBehavior = scrollBehavior) },
+        topBar = {
+            LargeTopAppBar(
+                title = { Text("Archive") },
+                scrollBehavior = scrollBehavior,
+                navigationIcon = {
+                    onMenuClick?.let {
+                        IconButton(onClick = it) {
+                            Icon(Icons.Default.Menu, contentDescription = "Open navigation menu")
+                        }
+                    }
+                },
+            )
+        },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             ReasonFilterRow(selected = reasonFilter, onSelect = viewModel::setReasonFilter)

@@ -1,6 +1,8 @@
 package com.sonothamin.meowlaundry.ui.laundry
 
 import android.text.format.DateUtils
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Info
@@ -116,6 +119,22 @@ fun TicketDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    // Lets the person save the rendered label as a PNG anywhere they like (Downloads, Photos, a
+    // cloud folder...) via the system file picker - no storage permission needed for this.
+    var pendingExportBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    val exportPngLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("image/png"),
+    ) { uri ->
+        val bitmap = pendingExportBitmap
+        pendingExportBitmap = null
+        if (uri != null && bitmap != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                }
+            }
+        }
+    }
     var showDuePicker by remember { mutableStateOf(false) }
     val askNotificationPermission = rememberNotificationPermissionRequester()
 
@@ -294,6 +313,10 @@ fun TicketDetailScreen(
             bitmap = bitmap,
             onDismiss = viewModel::dismissPreview,
             onPrint = { viewModel.dismissPreview(); viewModel.printTicket() },
+            onExportPng = {
+                pendingExportBitmap = bitmap
+                exportPngLauncher.launch("meowlaundry-ticket-${ticket?.id}.png")
+            },
         )
     }
 }
@@ -308,6 +331,7 @@ private fun LabelPreviewDialog(
     bitmap: android.graphics.Bitmap,
     onDismiss: () -> Unit,
     onPrint: () -> Unit,
+    onExportPng: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -334,6 +358,9 @@ private fun LabelPreviewDialog(
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(start = Spacing.sm).weight(1f),
                     )
+                    IconButton(onClick = onExportPng) {
+                        Icon(Icons.Default.FileDownload, contentDescription = "Save as PNG")
+                    }
                 }
                 Text(
                     "This is exactly what will come out of the printer.",

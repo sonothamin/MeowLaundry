@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.LocalLaundryService
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
@@ -81,6 +82,8 @@ fun LaundryScreen(
     /** When set, the flash snackbar offers "Undo", which reopens this ticket. */
     flashUndoTicketId: Long? = null,
     onFlashShown: () -> Unit = {},
+    /** Opens the nav drawer. Null hides the hamburger icon. */
+    onMenuClick: (() -> Unit)? = null,
 ) {
     val tickets by viewModel.tickets.collectAsStateWithLifecycle()
     val filteredOverviews by viewModel.filteredOverviews.collectAsStateWithLifecycle()
@@ -169,6 +172,13 @@ fun LaundryScreen(
                     LargeTopAppBar(
                         title = { Text("Laundry") },
                         scrollBehavior = scrollBehavior,
+                        navigationIcon = {
+                            onMenuClick?.let {
+                                IconButton(onClick = it) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Open navigation menu")
+                                }
+                            }
+                        },
                         actions = {
                             if (closedCount > 0) {
                                 IconButton(onClick = { showClearAllConfirm = true }) {

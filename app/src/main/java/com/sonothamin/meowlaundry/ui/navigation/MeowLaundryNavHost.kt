@@ -1,9 +1,10 @@
 package com.sonothamin.meowlaundry.ui.navigation
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
@@ -11,11 +12,16 @@ import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalLaundryService
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,14 +31,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.composable
-import androidx.navigation.NavHostController
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.sonothamin.meowlaundry.MeowLaundryApp
@@ -55,6 +59,7 @@ import com.sonothamin.meowlaundry.ui.laundry.TicketDetailScreen
 import com.sonothamin.meowlaundry.ui.laundry.TicketDetailViewModel
 import com.sonothamin.meowlaundry.ui.onboarding.OnboardingScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsScreen
+import com.sonothamin.meowlaundry.ui.theme.Spacing
 import com.sonothamin.meowlaundry.ui.stats.StatsScreen
 import com.sonothamin.meowlaundry.ui.stats.StatsViewModel
 import com.sonothamin.meowlaundry.ui.settings.SettingsViewModel
@@ -109,21 +114,38 @@ fun MeowLaundryNavHost(
     }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val showBottomBar = backStackEntry?.destination?.route != Destination.Onboarding.route
+    val currentRoute = backStackEntry?.destination?.route
+    // The drawer only makes sense on a tab's own root screen: on onboarding there's nothing to
+    // navigate to yet, and on a sub-screen (article, ticket...) swiping it open would fight with
+    // that screen's own back gesture.
+    val isTopLevelRoute = tabs.any { it.destination.route == currentRoute }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    Scaffold(
-        bottomBar = {
-            AnimatedVisibility(
-                visible = showBottomBar,
-                enter = fadeIn(tween(FADE_IN_MS)),
-                exit = fadeOut(tween(FADE_OUT_MS)),
-            ) { BottomBar(navController) }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = isTopLevelRoute,
+        drawerContent = {
+            ModalDrawerSheet {
+                NavDrawerContent(
+                    currentRoute = currentRoute,
+                    onSelect = { tab ->
+                        scope.launch { drawerState.close() }
+                        // Always land on the tab's main screen, never on whatever sub-page was last
+                        // open inside it. Closet is the root of the back stack once onboarding is
+                        // done, so pop everything above it, then open the tab fresh.
+                        navController.navigate(tab.destination.route) {
+                            popUpTo(Destination.Closet.route) { saveState = false }
+                            launchSingleTop = true
+                            restoreState = false
+                        }
+                    },
+                )
+            }
         },
-    ) { padding ->
+    ) {
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.padding(bottom = if (showBottomBar) padding.calculateBottomPadding() else 0.dp),
             enterTransition = { fadeIn(tween(FADE_IN_MS)) },
             exitTransition = { fadeOut(tween(FADE_OUT_MS)) },
             popEnterTransition = { fadeIn(tween(FADE_IN_MS)) },
@@ -164,6 +186,7 @@ fun MeowLaundryNavHost(
                     onAddItem = { navController.navigate(Destination.ItemEditNew.route) },
                     onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
                     onSendSelectedToLaundry = { ids -> navController.navigate(Destination.SendToLaundry.route(ids)) },
+                    onMenuClick = { scope.launch { drawerState.open() } },
                 )
             }
 
@@ -222,6 +245,7 @@ fun MeowLaundryNavHost(
                     viewModel = vm,
                     onSendNew = { navController.navigate(Destination.SendToLaundry.route()) },
                     onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) },
+                    onMenuClick = { scope.launch { drawerState.open() } },
                 )
             }
 
@@ -293,7 +317,11 @@ fun MeowLaundryNavHost(
                 val vm: ArchiveViewModel = viewModel(
                     factory = LambdaViewModelFactory { ArchiveViewModel(app.repository) },
                 )
-                ArchiveScreen(viewModel = vm, onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) })
+                ArchiveScreen(
+                    viewModel = vm,
+                    onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                )
             }
 
             composable(Destination.Stats.route) {
@@ -303,6 +331,7 @@ fun MeowLaundryNavHost(
                 StatsScreen(
                     viewModel = vm,
                     onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
+                    onMenuClick = { scope.launch { drawerState.open() } },
                 )
             }
 
@@ -312,33 +341,28 @@ fun MeowLaundryNavHost(
                         SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
                     },
                 )
-                SettingsScreen(viewModel = vm)
+                SettingsScreen(viewModel = vm, onMenuClick = { scope.launch { drawerState.open() } })
             }
         }
     }
 }
 
 @Composable
-private fun BottomBar(navController: NavHostController) {
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry?.destination?.route
-
-    NavigationBar {
+private fun NavDrawerContent(currentRoute: String?, onSelect: (TopLevelTab) -> Unit) {
+    Column(modifier = Modifier.padding(vertical = Spacing.md)) {
+        Text(
+            "MeowLaundry",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        )
+        HorizontalDivider(modifier = Modifier.padding(bottom = Spacing.sm))
         tabs.forEach { tab ->
-            NavigationBarItem(
+            NavigationDrawerItem(
                 selected = currentRoute == tab.destination.route,
-                onClick = {
-                    // Always land on the tab's main screen, never on whatever sub-page was last open
-                    // inside it (article, ticket, editor...). Closet is the root of the back stack once
-                    // onboarding is done, so pop everything above it, then open the tab fresh.
-                    navController.navigate(tab.destination.route) {
-                        popUpTo(Destination.Closet.route) { saveState = false }
-                        launchSingleTop = true
-                        restoreState = false
-                    }
-                },
-                icon = { Icon(tab.icon, contentDescription = tab.label) },
+                onClick = { onSelect(tab) },
+                icon = { Icon(tab.icon, contentDescription = null) },
                 label = { Text(tab.label) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm),
             )
         }
     }

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalLaundryService
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -75,6 +76,8 @@ fun ClosetScreen(
     onAddItem: () -> Unit,
     onOpenItem: (Long) -> Unit,
     onSendSelectedToLaundry: (List<Long>) -> Unit,
+    /** Opens the nav drawer. Null hides the hamburger icon (e.g. when embedded without a drawer). */
+    onMenuClick: (() -> Unit)? = null,
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
@@ -162,6 +165,13 @@ fun ClosetScreen(
                     LargeTopAppBar(
                         title = { Text("My closet") },
                         scrollBehavior = scrollBehavior,
+                        navigationIcon = {
+                            onMenuClick?.let {
+                                IconButton(onClick = it) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Open navigation menu")
+                                }
+                            }
+                        },
                         actions = {
                             IconButton(onClick = { viewModel.setSearchActive(true) }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search")

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.EventAvailable
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -65,11 +67,26 @@ import java.util.Locale
 fun StatsScreen(
     viewModel: StatsViewModel,
     onOpenItem: (Long) -> Unit,
+    /** Opens the nav drawer. Null hides the hamburger icon. */
+    onMenuClick: (() -> Unit)? = null,
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val period by viewModel.period.collectAsStateWithLifecycle()
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Stats") }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Stats") },
+                navigationIcon = {
+                    onMenuClick?.let {
+                        IconButton(onClick = it) {
+                            Icon(Icons.Default.Menu, contentDescription = "Open navigation menu")
+                        }
+                    }
+                },
+            )
+        },
+    ) { padding ->
         val data = ui ?: return@Scaffold
         if (!data.hasAnyTrips) {
             EmptyState(
