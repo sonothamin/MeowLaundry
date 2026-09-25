@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,17 +24,19 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalLaundryService
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -83,8 +87,10 @@ fun ClosetScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             AnimatedContent(targetState = selectionMode, label = "closet-topbar") { inSelection ->
                 if (inSelection) {
@@ -152,8 +158,9 @@ fun ClosetScreen(
                         },
                     )
                 } else {
-                    TopAppBar(
+                    LargeTopAppBar(
                         title = { Text("My closet") },
+                        scrollBehavior = scrollBehavior,
                         actions = {
                             IconButton(onClick = { viewModel.setSearchActive(true) }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search")
@@ -171,19 +178,22 @@ fun ClosetScreen(
         },
         floatingActionButton = {
             if (!selectionMode) {
-                FloatingActionButton(onClick = onAddItem) {
-                    Icon(Icons.Default.Add, contentDescription = "Add garment")
-                }
+                ExtendedFloatingActionButton(
+                    onClick = onAddItem,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Add garment") },
+                )
             }
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (!selectionMode) {
-                SummaryRow(
+                ClosetSummaryBlock(
                     inCloset = summary.inClosetCount,
                     atLaundry = summary.atLaundryCount,
                     lost = summary.lostCount,
                     lostValues = summary.lostValues,
+                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
                 )
                 FilterRow(selected = filter, onSelect = viewModel::setFilter)
             }
@@ -252,34 +262,68 @@ fun ClosetScreen(
 }
 
 @Composable
-private fun SummaryRow(inCloset: Int, atLaundry: Int, lost: Int, lostValues: List<CurrencyAmount>) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        SummaryCard(label = "In closet", value = inCloset.toString(), modifier = Modifier.weight(1f))
-        SummaryCard(label = "At laundry", value = atLaundry.toString(), modifier = Modifier.weight(1f))
-        SummaryCard(
-            label = "Lost",
-            value = lostValues.filter { it.total > 0 }.let { amounts ->
-                if (amounts.isEmpty()) lost.toString()
-                else "$lost · " + amounts.joinToString(" + ") { Currencies.format(it.total, it.currency) }
-            },
+private fun ClosetSummaryBlock(
+    inCloset: Int,
+    atLaundry: Int,
+    lost: Int,
+    lostValues: List<CurrencyAmount>,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val lostTotal = lostValues.filter { it.total > 0 }
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        StatTile(
+            icon = Icons.Default.Checkroom,
+            value = inCloset.toString(),
+            label = "In closet",
+            container = scheme.tertiaryContainer,
+            content = scheme.onTertiaryContainer,
+            modifier = Modifier.weight(1f),
+        )
+        StatTile(
+            icon = Icons.Default.LocalLaundryService,
+            value = atLaundry.toString(),
+            label = "At laundry",
+            container = scheme.primaryContainer,
+            content = scheme.onPrimaryContainer,
+            modifier = Modifier.weight(1f),
+        )
+        StatTile(
+            icon = Icons.Default.ReportProblem,
+            value = lost.toString(),
+            label = if (lostTotal.isEmpty()) "Lost" else lostTotal.joinToString(" + ") { Currencies.format(it.total, it.currency) },
+            container = if (lost > 0) scheme.errorContainer else scheme.surfaceContainerHigh,
+            content = if (lost > 0) scheme.onErrorContainer else scheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
     }
 }
 
 @Composable
-private fun SummaryCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
-        Column(modifier = Modifier.padding(Spacing.sm)) {
-            Text(value, style = MaterialTheme.typography.titleMedium)
-            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun StatTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: String,
+    label: String,
+    container: androidx.compose.ui.graphics.Color,
+    content: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
+    Surface(modifier = modifier, shape = MaterialTheme.shapes.large, color = container, contentColor = content) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -287,7 +331,10 @@ private fun SummaryCard(label: String, value: String, modifier: Modifier = Modif
 @Composable
 private fun FilterRow(selected: ClothingStatus?, onSelect: (ClothingStatus?) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("All") })

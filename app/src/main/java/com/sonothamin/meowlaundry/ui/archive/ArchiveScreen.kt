@@ -29,12 +29,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,9 +59,11 @@ fun ArchiveScreen(
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val reasonFilter by viewModel.reasonFilter.collectAsStateWithLifecycle()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Archive") }) },
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = { LargeTopAppBar(title = { Text("Archive") }, scrollBehavior = scrollBehavior) },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             ReasonFilterRow(selected = reasonFilter, onSelect = viewModel::setReasonFilter)
