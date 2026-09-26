@@ -107,6 +107,15 @@ class SettingsViewModel(
         viewModelScope.launch { printPreferences.update(settings) }
     }
 
+    /** Saves both the connection settings and the ticket layout together, then confirms via [uiState.message]. */
+    fun savePrintSettings(settings: PrintServerSettings, customization: LabelCustomization) {
+        viewModelScope.launch {
+            printPreferences.update(settings)
+            printPreferences.updateLabelCustomization(customization)
+            _uiState.value = _uiState.value.copy(message = "Print settings saved")
+        }
+    }
+
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { appPreferences.setThemeMode(mode) }
     }

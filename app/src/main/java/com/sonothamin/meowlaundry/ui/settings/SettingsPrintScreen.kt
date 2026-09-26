@@ -1,23 +1,35 @@
 package com.sonothamin.meowlaundry.ui.settings
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -39,6 +51,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -47,6 +61,7 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
+import com.sonothamin.meowlaundry.data.PDF_HEADER_COLOR_PRESETS
 import com.sonothamin.meowlaundry.data.PageSize
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
@@ -74,7 +89,7 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
-            snackbarHostState.showSnackbar(it)
+            snackbarHostState.showSnackbar(it, withDismissAction = true)
             viewModel.dismissMessage()
         }
     }
@@ -91,8 +106,9 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     var showGarmentType by remember(labelCustomization.showGarmentType) { mutableStateOf(labelCustomization.showGarmentType) }
     var ticketFormat by remember(labelCustomization.format) { mutableStateOf(labelCustomization.format) }
     var pageSize by remember(labelCustomization.pageSize) { mutableStateOf(labelCustomization.pageSize) }
+    var headerColor by remember(labelCustomization.headerColor) { mutableStateOf(labelCustomization.headerColor) }
     // Recomputed on every edit so the preview always reflects exactly what's about to be saved.
-    val previewCustomization = LabelCustomization(headerText, footerText, showGarmentType, ticketFormat, pageSize)
+    val previewCustomization = LabelCustomization(headerText, footerText, showGarmentType, ticketFormat, pageSize, headerColor)
     val previewBitmap = remember(previewCustomization) {
         if (previewCustomization.format == TicketFormat.PAGE) {
             PdfPageRenderer.renderPreviewBitmap(previewTicket, previewGarments, previewCustomization)
@@ -248,14 +264,30 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
 
             if (ticketFormat == TicketFormat.PAGE) {
                 Text("Paper size", style = MaterialTheme.typography.labelLarge)
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    PageSize.entries.forEachIndexed { index, size ->
-                        SegmentedButton(
-                            selected = pageSize == size,
-                            onClick = { pageSize = size },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = PageSize.entries.size),
-                            label = { Text(size.label) },
-                        )
+                PageSizeDropdown(selected = pageSize, onSelect = { pageSize = it })
+
+                Text("Header color", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    PDF_HEADER_COLOR_PRESETS.forEach { argb ->
+                        val swatchColor = Color(argb)
+                        val isSelected = headerColor == argb
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(swatchColor)
+                                .border(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
+                                    shape = CircleShape,
+                                )
+                                .clickable { headerColor = argb },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(18.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -299,7 +331,7 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Button(
                     onClick = {
-                        viewModel.updateSettings(
+                        viewModel.savePrintSettings(
                             PrintServerSettings(
                                 host = host.trim(),
                                 port = port.toIntOrNull() ?: 8631,
@@ -307,9 +339,9 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                                 darkness = darkness.roundToInt().coerceIn(0, 100),
                                 dither = "sharp",
                                 printMethod = printMethod,
-                            )
+                            ),
+                            previewCustomization,
                         )
-                        viewModel.updateLabelCustomization(previewCustomization)
                     },
                 ) { Text("Save") }
                 if (printMethod == PrintMethod.NETWORK) {
@@ -321,6 +353,45 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             if (printMethod == PrintMethod.NETWORK) {
                 uiState.connectionStatus?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+/** Dropdown list of standard paper sizes, grouped by family (ISO 216 vs. North American). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PageSizeDropdown(selected: PageSize, onSelect: (PageSize) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = "${selected.label} (${selected.dimensions})",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Paper size") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            PageSize.entries.groupBy { it.family }.forEach { (family, sizes) ->
+                Text(
+                    family,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                )
+                sizes.forEach { size ->
+                    DropdownMenuItem(
+                        text = { Text("${size.label}  \u00b7  ${size.dimensions}") },
+                        onClick = {
+                            onSelect(size)
+                            expanded = false
+                        },
+                        trailingIcon = {
+                            if (size == selected) Icon(Icons.Default.Check, contentDescription = null)
+                        },
+                    )
                 }
             }
         }

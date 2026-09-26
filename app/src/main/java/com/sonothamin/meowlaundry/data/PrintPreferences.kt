@@ -37,11 +37,19 @@ enum class TicketFormat {
     PAGE,
 }
 
-/** Standard paper size for [TicketFormat.PAGE], in PDF points (1/72 inch). */
-enum class PageSize(val widthPt: Int, val heightPt: Int, val label: String) {
-    A4(595, 842, "A4"),
-    LETTER(612, 792, "Letter"),
-    LEGAL(612, 1008, "Legal"),
+/**
+ * A standard paper size for [TicketFormat.PAGE], in PDF points (1/72 inch). [family] groups
+ * entries in the settings dropdown (ISO 216 vs. North American), and [dimensions] is shown
+ * alongside the name so an unfamiliar size like Executive is still identifiable at a glance.
+ */
+enum class PageSize(val widthPt: Int, val heightPt: Int, val label: String, val family: String, val dimensions: String) {
+    A3(842, 1191, "A3", "ISO 216", "297 \u00d7 420 mm"),
+    A4(595, 842, "A4", "ISO 216", "210 \u00d7 297 mm"),
+    A5(420, 595, "A5", "ISO 216", "148 \u00d7 210 mm"),
+    LETTER(612, 792, "Letter", "North America", "8.5 \u00d7 11 in"),
+    LEGAL(612, 1008, "Legal", "North America", "8.5 \u00d7 14 in"),
+    TABLOID(792, 1224, "Tabloid", "North America", "11 \u00d7 17 in"),
+    EXECUTIVE(522, 756, "Executive", "North America", "7.25 \u00d7 10.5 in"),
 }
 
 /** Everything needed to reach a MeowSpool print server, plus a couple of label defaults. */
@@ -66,6 +74,23 @@ data class LabelCustomization(
     val format: TicketFormat = TicketFormat.RECEIPT,
     /** Paper size used when [format] is [TicketFormat.PAGE]. Ignored otherwise. */
     val pageSize: PageSize = PageSize.A4,
+    /** ARGB color of the masthead band on a [TicketFormat.PAGE] document. Ignored otherwise. */
+    val headerColor: Int = DEFAULT_HEADER_COLOR,
+)
+
+/** The launcher icon's purple - the default PDF header band color. */
+val DEFAULT_HEADER_COLOR: Int = 0xFF6750A4.toInt()
+
+/** A curated set of header band colors offered in Settings, all dark enough for white text. */
+val PDF_HEADER_COLOR_PRESETS: List<Int> = listOf(
+    DEFAULT_HEADER_COLOR, // purple
+    0xFF1A237E.toInt(), // navy
+    0xFF00695C.toInt(), // teal
+    0xFF2E7D32.toInt(), // forest green
+    0xFFB71C1C.toInt(), // crimson
+    0xFF4E342E.toInt(), // espresso
+    0xFF37474F.toInt(), // charcoal
+    0xFF212121.toInt(), // black
 )
 
 class PrintPreferences(private val context: Context) {
@@ -82,6 +107,7 @@ class PrintPreferences(private val context: Context) {
         val LABEL_SHOW_GARMENT_TYPE = androidx.datastore.preferences.core.booleanPreferencesKey("label_show_garment_type")
         val LABEL_FORMAT = stringPreferencesKey("label_format")
         val LABEL_PAGE_SIZE = stringPreferencesKey("label_page_size")
+        val LABEL_HEADER_COLOR = intPreferencesKey("label_header_color")
     }
 
     val settings: Flow<PrintServerSettings> = context.dataStore.data.map { prefs ->
@@ -119,6 +145,7 @@ class PrintPreferences(private val context: Context) {
             pageSize = prefs[Keys.LABEL_PAGE_SIZE]
                 ?.let { runCatching { PageSize.valueOf(it) }.getOrNull() }
                 ?: PageSize.A4,
+            headerColor = prefs[Keys.LABEL_HEADER_COLOR] ?: DEFAULT_HEADER_COLOR,
         )
     }
 
@@ -129,6 +156,7 @@ class PrintPreferences(private val context: Context) {
             prefs[Keys.LABEL_SHOW_GARMENT_TYPE] = customization.showGarmentType
             prefs[Keys.LABEL_FORMAT] = customization.format.name
             prefs[Keys.LABEL_PAGE_SIZE] = customization.pageSize.name
+            prefs[Keys.LABEL_HEADER_COLOR] = customization.headerColor
         }
     }
 }

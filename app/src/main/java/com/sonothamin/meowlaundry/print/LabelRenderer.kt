@@ -106,7 +106,7 @@ object LabelRenderer {
         }
         cursorY += 34
         canvas.drawText(
-            "${garments.size} garment${if (garments.size == 1) "" else "s"} · check each one on return",
+            "${garments.size} garment${if (garments.size == 1) "" else "s"} \u00b7 Check each one on return",
             margin.toFloat(),
             cursorY.toFloat(),
             footerPaint,

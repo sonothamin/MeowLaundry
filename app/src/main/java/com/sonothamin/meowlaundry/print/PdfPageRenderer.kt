@@ -38,11 +38,15 @@ object PdfPageRenderer {
     private const val ROW_HEIGHT = 26f
     private const val FOOTER_RESERVE = 46f // divider + footer line + page number, reserved on every page
 
-    private val ACCENT = Color.rgb(103, 80, 164) // matches the launcher icon's purple
-    private val ACCENT_LIGHT = Color.rgb(232, 226, 246)
     private val ROW_SHADE = Color.rgb(248, 248, 251)
     private val HAIRLINE = Color.rgb(210, 210, 216)
     private val MUTED = Color.rgb(110, 110, 118)
+
+    /** A ~78%-toward-white tint of [color], used for the numbered-circle fill behind each row. */
+    private fun lightTint(color: Int): Int {
+        fun mix(channel: Int) = (channel + (255 - channel) * 0.78f).toInt().coerceIn(0, 255)
+        return Color.rgb(mix(Color.red(color)), mix(Color.green(color)), mix(Color.blue(color)))
+    }
 
     private fun serviceLabel(type: ServiceType): String = when (type) {
         ServiceType.WASH -> "Wash"
@@ -162,7 +166,7 @@ object PdfPageRenderer {
 
         if (isFirstPageOfTicket) {
             // Header band
-            canvas.drawRect(RectF(0f, 0f, pageWidth, BAND_HEIGHT), fillPaint(ACCENT))
+            canvas.drawRect(RectF(0f, 0f, pageWidth, BAND_HEIGHT), fillPaint(customization.headerColor))
             canvas.drawText(
                 customization.headerText.ifBlank { "MeowLaundry" },
                 MARGIN,
@@ -197,7 +201,7 @@ object PdfPageRenderer {
             }
             y += STAT_BOX_HEIGHT + 20f
 
-            canvas.drawText("Garments \u00b7 check each one on return", MARGIN, y, paint(13f, bold = true))
+            canvas.drawText("Garments \u00b7 Check each one on return", MARGIN, y, paint(13f, bold = true))
             y += 10f
             canvas.drawLine(MARGIN, y, pageWidth - MARGIN, y, linePaint())
             y += 16f
@@ -221,12 +225,12 @@ object PdfPageRenderer {
                 canvas.drawRect(RectF(MARGIN, rowTop, pageWidth - MARGIN, rowTop + ROW_HEIGHT), fillPaint(ROW_SHADE))
             }
             val centerY = rowTop + ROW_HEIGHT / 2f
-            canvas.drawCircle(MARGIN + 14f, centerY, circleR, fillPaint(ACCENT_LIGHT))
+            canvas.drawCircle(MARGIN + 14f, centerY, circleR, fillPaint(lightTint(customization.headerColor)))
             canvas.drawText(
                 "${index + 1}",
                 MARGIN + 14f,
                 centerY + 4f,
-                paint(10f, bold = true, color = ACCENT, align = Paint.Align.CENTER),
+                paint(10f, bold = true, color = customization.headerColor, align = Paint.Align.CENTER),
             )
 
             val namePaint = paint(12.5f)
