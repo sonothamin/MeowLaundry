@@ -17,6 +17,7 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintPreferences
+import com.sonothamin.meowlaundry.data.TicketFormat
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.io.FileOutputStream
@@ -48,8 +49,55 @@ class PrintDispatcher(
 ) {
 
     /** Renders one ticket's label using whatever customization the person set in Settings. */
-    suspend fun renderTicket(ticket: LaundryTicket, garments: List<ClothingItem>): Bitmap =
-        LabelRenderer.renderTicket(ticket, garments, printPreferences.labelCustomization.first())
+    suspend fun renderTicket(ticket: LaundryTicket, garments: List<ClothingItem>): Bitmap {
+        val customization = printPreferences.labelCustomization.first()
+        return if (customization.format == TicketFormat.PAGE) {
+            PdfPageRenderer.renderPreviewBitmap(ticket, garments, customization)
+        } else {
+            LabelRenderer.renderTicket(ticket, garments, customization)
+        }
+    }
+
+    /**
+     * Prints a single ticket, picking the right pipeline for the chosen [TicketFormat]: the
+     * thermal bitmap path for Receipt/Rectangular, or a real text PDF for [TicketFormat.PAGE]
+     * (which a thermal printer can't use, so that format always goes through the system print
+     * dialog or a generic "share this PDF" sheet instead of MeowSpool).
+     */
+    suspend fun dispatchTicket(ticket: LaundryTicket, garments: List<ClothingItem>): PrintOutcome {
+        if (garments.isEmpty()) return PrintOutcome.Failed("Nothing to print")
+        val customization = printPreferences.labelCustomization.first()
+        if (customization.format != TicketFormat.PAGE) {
+            val bitmap = LabelRenderer.renderTicket(ticket, garments, customization)
+            return dispatch(bitmap)
+        }
+
+        val settings = printPreferences.settings.first()
+        val pdfDir = File(context.cacheDir, "print_share").apply { mkdirs() }
+        val file = File(pdfDir, "ticket_${ticket.id}_${System.currentTimeMillis()}.pdf")
+        PdfPageRenderer.writeToFile(ticket, garments, customization, file)
+
+        return if (settings.printMethod == PrintMethod.NATIVE) {
+            printPdfNative(file, "MeowLaundry ticket #${ticket.id}")
+            PrintOutcome.Printed("Opening print dialog…")
+        } else {
+            // A thermal printer (MeowSpool) can't take a full-page PDF, so Page format always
+            // goes out as a plain PDF share instead of the MeowSpool-only intent used elsewhere.
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                putExtra(Intent.EXTRA_STREAM, uri)
+                type = "application/pdf"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            PrintOutcome.ShareReady(intent)
+        }
+    }
+
+    /** Hands an already-rendered real PDF file straight to the system print dialog, unchanged. */
+    private fun printPdfNative(file: File, jobName: String) {
+        val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
+        printManager.print(jobName, FilePrintDocumentAdapter(file, jobName), null)
+    }
 
     /** Renders and prints a single label. */
     suspend fun dispatch(bitmap: Bitmap): PrintOutcome = dispatchMultiple(listOf(bitmap))
@@ -201,6 +249,52 @@ private class BitmapPrintDocumentAdapter(
         } finally {
             doc.close()
             pdfDocument = null
+        }
+        callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
+    }
+}
+
+/**
+ * Streams an already-rendered real PDF file (real text, built by [PdfPageRenderer]) straight to
+ * the print spooler as-is - no bitmap re-rasterization, so the printed/saved result keeps its
+ * selectable text. `newAttributes`/paper size are ignored: the page size was already baked in
+ * when the PDF was built from the person's chosen [com.sonothamin.meowlaundry.data.PageSize].
+ */
+private class FilePrintDocumentAdapter(
+    private val file: File,
+    private val jobName: String,
+) : PrintDocumentAdapter() {
+
+    override fun onLayout(
+        oldAttributes: PrintAttributes,
+        newAttributes: PrintAttributes,
+        cancellationSignal: CancellationSignal,
+        callback: LayoutResultCallback,
+        extras: Bundle,
+    ) {
+        if (cancellationSignal.isCanceled) {
+            callback.onLayoutCancelled()
+            return
+        }
+        val info = PrintDocumentInfo.Builder(jobName)
+            .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+            .build()
+        callback.onLayoutFinished(info, true)
+    }
+
+    override fun onWrite(
+        pages: Array<out PageRange>,
+        destination: ParcelFileDescriptor,
+        cancellationSignal: CancellationSignal,
+        callback: WriteResultCallback,
+    ) {
+        try {
+            file.inputStream().use { input ->
+                FileOutputStream(destination.fileDescriptor).use { out -> input.copyTo(out) }
+            }
+        } catch (e: IOException) {
+            callback.onWriteFailed(e.message ?: "Print failed")
+            return
         }
         callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
     }

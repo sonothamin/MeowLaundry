@@ -159,16 +159,18 @@ class TicketDetailViewModel(
     fun printTicket() {
         viewModelScope.launch {
             isPrinting.value = true
-            val bitmap = renderCurrentLabel()
-            if (bitmap == null) {
+            val ticket = repository.getTicket(ticketId)
+            val garments = state.value.garments
+            if (ticket == null || garments.isEmpty()) {
+                _events.emit(TicketDetailEvent.Message("Nothing to print yet"))
                 isPrinting.value = false
                 return@launch
             }
-            when (val outcome = printDispatcher.dispatch(bitmap)) {
+            when (val outcome = printDispatcher.dispatchTicket(ticket, garments)) {
                 is PrintOutcome.Printed -> _events.emit(TicketDetailEvent.Message(outcome.message))
                 is PrintOutcome.Failed -> _events.emit(TicketDetailEvent.Message(outcome.message))
                 is PrintOutcome.ShareReady -> _events.emit(
-                    TicketDetailEvent.LaunchIntent(outcome.intent, "Print via MeowSpool"),
+                    TicketDetailEvent.LaunchIntent(outcome.intent, "Print"),
                 )
             }
             isPrinting.value = false

@@ -28,6 +28,20 @@ enum class TicketFormat {
 
     /** A bordered, self-contained card - suited to a sheet-fed printer via the system dialog. */
     RECTANGULAR,
+
+    /**
+     * A real text document sized for standard paper (see [PageSize]) - drawn with actual text
+     * (selectable/searchable in the resulting PDF), not a rasterized bitmap image like the
+     * other two formats. Meant for printing via the system dialog or sharing/saving as a PDF.
+     */
+    PAGE,
+}
+
+/** Standard paper size for [TicketFormat.PAGE], in PDF points (1/72 inch). */
+enum class PageSize(val widthPt: Int, val heightPt: Int, val label: String) {
+    A4(595, 842, "A4"),
+    LETTER(612, 792, "Letter"),
+    LEGAL(612, 1008, "Legal"),
 }
 
 /** Everything needed to reach a MeowSpool print server, plus a couple of label defaults. */
@@ -50,6 +64,8 @@ data class LabelCustomization(
     val showGarmentType: Boolean = true,
     /** Receipt strip or bordered rectangular card - see [TicketFormat]. */
     val format: TicketFormat = TicketFormat.RECEIPT,
+    /** Paper size used when [format] is [TicketFormat.PAGE]. Ignored otherwise. */
+    val pageSize: PageSize = PageSize.A4,
 )
 
 class PrintPreferences(private val context: Context) {
@@ -65,6 +81,7 @@ class PrintPreferences(private val context: Context) {
         val LABEL_FOOTER = stringPreferencesKey("label_footer")
         val LABEL_SHOW_GARMENT_TYPE = androidx.datastore.preferences.core.booleanPreferencesKey("label_show_garment_type")
         val LABEL_FORMAT = stringPreferencesKey("label_format")
+        val LABEL_PAGE_SIZE = stringPreferencesKey("label_page_size")
     }
 
     val settings: Flow<PrintServerSettings> = context.dataStore.data.map { prefs ->
@@ -99,6 +116,9 @@ class PrintPreferences(private val context: Context) {
             format = prefs[Keys.LABEL_FORMAT]
                 ?.let { runCatching { TicketFormat.valueOf(it) }.getOrNull() }
                 ?: TicketFormat.RECEIPT,
+            pageSize = prefs[Keys.LABEL_PAGE_SIZE]
+                ?.let { runCatching { PageSize.valueOf(it) }.getOrNull() }
+                ?: PageSize.A4,
         )
     }
 
@@ -108,6 +128,7 @@ class PrintPreferences(private val context: Context) {
             prefs[Keys.LABEL_FOOTER] = customization.footerText
             prefs[Keys.LABEL_SHOW_GARMENT_TYPE] = customization.showGarmentType
             prefs[Keys.LABEL_FORMAT] = customization.format.name
+            prefs[Keys.LABEL_PAGE_SIZE] = customization.pageSize.name
         }
     }
 }

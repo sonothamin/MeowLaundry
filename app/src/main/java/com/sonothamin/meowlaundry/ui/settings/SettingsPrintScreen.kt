@@ -47,11 +47,13 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
+import com.sonothamin.meowlaundry.data.PageSize
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
 import com.sonothamin.meowlaundry.data.ServiceType
 import com.sonothamin.meowlaundry.data.TicketFormat
 import com.sonothamin.meowlaundry.print.LabelRenderer
+import com.sonothamin.meowlaundry.print.PdfPageRenderer
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import kotlin.math.roundToInt
 
@@ -88,10 +90,15 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     var footerText by remember(labelCustomization.footerText) { mutableStateOf(labelCustomization.footerText) }
     var showGarmentType by remember(labelCustomization.showGarmentType) { mutableStateOf(labelCustomization.showGarmentType) }
     var ticketFormat by remember(labelCustomization.format) { mutableStateOf(labelCustomization.format) }
+    var pageSize by remember(labelCustomization.pageSize) { mutableStateOf(labelCustomization.pageSize) }
     // Recomputed on every edit so the preview always reflects exactly what's about to be saved.
-    val previewCustomization = LabelCustomization(headerText, footerText, showGarmentType, ticketFormat)
+    val previewCustomization = LabelCustomization(headerText, footerText, showGarmentType, ticketFormat, pageSize)
     val previewBitmap = remember(previewCustomization) {
-        LabelRenderer.renderTicket(previewTicket, previewGarments, previewCustomization)
+        if (previewCustomization.format == TicketFormat.PAGE) {
+            PdfPageRenderer.renderPreviewBitmap(previewTicket, previewGarments, previewCustomization)
+        } else {
+            LabelRenderer.renderTicket(previewTicket, previewGarments, previewCustomization)
+        }
     }
 
     Scaffold(
@@ -212,25 +219,46 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 SegmentedButton(
                     selected = ticketFormat == TicketFormat.RECEIPT,
                     onClick = { ticketFormat = TicketFormat.RECEIPT },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
                     label = { Text("Receipt") },
                 )
                 SegmentedButton(
                     selected = ticketFormat == TicketFormat.RECTANGULAR,
                     onClick = { ticketFormat = TicketFormat.RECTANGULAR },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
                     label = { Text("Rectangular") },
+                )
+                SegmentedButton(
+                    selected = ticketFormat == TicketFormat.PAGE,
+                    onClick = { ticketFormat = TicketFormat.PAGE },
+                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                    label = { Text("Page (PDF)") },
                 )
             }
             Text(
-                if (ticketFormat == TicketFormat.RECEIPT) {
-                    "An open continuous strip with dashed tear lines, like a thermal receipt."
-                } else {
-                    "A bordered, self-contained card - a good fit for a sheet-fed printer via System."
+                when (ticketFormat) {
+                    TicketFormat.RECEIPT -> "An open continuous strip with dashed tear lines, like a thermal receipt."
+                    TicketFormat.RECTANGULAR -> "A bordered, self-contained card - a good fit for a sheet-fed printer via System."
+                    TicketFormat.PAGE -> "A real text document on standard paper - selectable text, not a bitmap image. " +
+                        "Prints via the system dialog, or shares as a plain PDF file."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            if (ticketFormat == TicketFormat.PAGE) {
+                Text("Paper size", style = MaterialTheme.typography.labelLarge)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    PageSize.entries.forEachIndexed { index, size ->
+                        SegmentedButton(
+                            selected = pageSize == size,
+                            onClick = { pageSize = size },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = PageSize.entries.size),
+                            label = { Text(size.label) },
+                        )
+                    }
+                }
+            }
 
             OutlinedTextField(
                 value = headerText,
