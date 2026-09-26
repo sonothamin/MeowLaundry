@@ -186,27 +186,27 @@ class LaundryViewModel(
         viewModelScope.launch {
             val ids = _selectedIds.value.toList()
             if (ids.isEmpty()) return@launch
-            val bitmaps = renderSelectedLabels(ids)
-            if (bitmaps.isEmpty()) {
+            val ticketsWithGarments = loadSelectedTicketsWithGarments(ids)
+            if (ticketsWithGarments.isEmpty()) {
                 _events.emit(LaundryEvent.Message("Nothing to print"))
                 return@launch
             }
-            when (val outcome = printDispatcher.dispatchMultiple(bitmaps)) {
+            when (val outcome = printDispatcher.dispatchTickets(ticketsWithGarments)) {
                 is PrintOutcome.Printed -> _events.emit(LaundryEvent.Message(outcome.message))
                 is PrintOutcome.Failed -> _events.emit(LaundryEvent.Message(outcome.message))
-                is PrintOutcome.ShareReady -> _events.emit(LaundryEvent.LaunchIntent(outcome.intent, "Print via MeowSpool"))
+                is PrintOutcome.ShareReady -> _events.emit(LaundryEvent.LaunchIntent(outcome.intent, "Print"))
             }
         }
     }
 
-    private suspend fun renderSelectedLabels(ids: List<Long>): List<android.graphics.Bitmap> {
-        val bitmaps = mutableListOf<android.graphics.Bitmap>()
+    private suspend fun loadSelectedTicketsWithGarments(ids: List<Long>): List<Pair<LaundryTicket, List<com.sonothamin.meowlaundry.data.ClothingItem>>> {
+        val result = mutableListOf<Pair<LaundryTicket, List<com.sonothamin.meowlaundry.data.ClothingItem>>>()
         ids.forEach { id ->
             val ticket = repository.getTicket(id) ?: return@forEach
             val garments = repository.observeGarmentsForTicket(id).first()
-            bitmaps += printDispatcher.renderTicket(ticket, garments)
+            if (garments.isNotEmpty()) result += ticket to garments
         }
-        return bitmaps
+        return result
     }
 }
 

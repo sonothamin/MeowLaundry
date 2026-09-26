@@ -64,21 +64,39 @@ class PrintDispatcher(
      * (which a thermal printer can't use, so that format always goes through the system print
      * dialog or a generic "share this PDF" sheet instead of MeowSpool).
      */
-    suspend fun dispatchTicket(ticket: LaundryTicket, garments: List<ClothingItem>): PrintOutcome {
-        if (garments.isEmpty()) return PrintOutcome.Failed("Nothing to print")
+    suspend fun dispatchTicket(ticket: LaundryTicket, garments: List<ClothingItem>): PrintOutcome =
+        dispatchTickets(listOf(ticket to garments))
+
+    /**
+     * Prints several tickets at once. For Receipt/Rectangular this keeps the old behaviour of
+     * stitching every label into one perforated image (MeowSpool's share intent only takes a
+     * single file). For [TicketFormat.PAGE] it builds one real-text PDF where each ticket starts
+     * on its own page (see [PdfPageRenderer.buildMultiDocument]) - proper page breaks per order,
+     * not everything crammed onto a single sheet.
+     */
+    suspend fun dispatchTickets(tickets: List<Pair<LaundryTicket, List<ClothingItem>>>): PrintOutcome {
+        val nonEmpty = tickets.filter { it.second.isNotEmpty() }
+        if (nonEmpty.isEmpty()) return PrintOutcome.Failed("Nothing to print")
         val customization = printPreferences.labelCustomization.first()
+
         if (customization.format != TicketFormat.PAGE) {
-            val bitmap = LabelRenderer.renderTicket(ticket, garments, customization)
-            return dispatch(bitmap)
+            val bitmaps = nonEmpty.map { (ticket, garments) -> LabelRenderer.renderTicket(ticket, garments, customization) }
+            return dispatchMultiple(bitmaps)
         }
 
         val settings = printPreferences.settings.first()
         val pdfDir = File(context.cacheDir, "print_share").apply { mkdirs() }
-        val file = File(pdfDir, "ticket_${ticket.id}_${System.currentTimeMillis()}.pdf")
-        PdfPageRenderer.writeToFile(ticket, garments, customization, file)
+        val jobName = if (nonEmpty.size == 1) {
+            "MeowLaundry ticket #${nonEmpty.first().first.id}"
+        } else {
+            "MeowLaundry tickets (${nonEmpty.size})"
+        }
+        val fileName = if (nonEmpty.size == 1) "ticket_${nonEmpty.first().first.id}" else "tickets_${nonEmpty.size}"
+        val file = File(pdfDir, "${fileName}_${System.currentTimeMillis()}.pdf")
+        PdfPageRenderer.writeMultiToFile(nonEmpty, customization, file)
 
         return if (settings.printMethod == PrintMethod.NATIVE) {
-            printPdfNative(file, "MeowLaundry ticket #${ticket.id}")
+            printPdfNative(file, jobName)
             PrintOutcome.Printed("Opening print dialog…")
         } else {
             // A thermal printer (MeowSpool) can't take a full-page PDF, so Page format always
