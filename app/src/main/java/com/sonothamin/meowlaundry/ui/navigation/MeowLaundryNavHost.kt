@@ -59,6 +59,7 @@ import com.sonothamin.meowlaundry.ui.laundry.SendToLaundryViewModel
 import com.sonothamin.meowlaundry.ui.laundry.TicketDetailScreen
 import com.sonothamin.meowlaundry.ui.laundry.TicketDetailViewModel
 import com.sonothamin.meowlaundry.ui.onboarding.OnboardingScreen
+import com.sonothamin.meowlaundry.ui.settings.SettingsAboutScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsAppearanceScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsBackupScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsCurrencyScreen
@@ -376,6 +377,7 @@ fun MeowLaundryNavHost(
                     onOpenAppearance = { navController.navigate(Destination.SettingsAppearance.route) },
                     onOpenCurrency = { navController.navigate(Destination.SettingsCurrency.route) },
                     onOpenBackup = { navController.navigate(Destination.SettingsBackup.route) },
+                    onOpenAbout = { navController.navigate(Destination.SettingsAbout.route) },
                     onMenuClick = { scope.launch { drawerState.open() } },
                 )
             }
@@ -423,6 +425,10 @@ fun MeowLaundryNavHost(
                     },
                 )
                 SettingsBackupScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+
+            composable(Destination.SettingsAbout.route) {
+                SettingsAboutScreen(onBack = { navController.popBackStack() })
             }
         }
     }

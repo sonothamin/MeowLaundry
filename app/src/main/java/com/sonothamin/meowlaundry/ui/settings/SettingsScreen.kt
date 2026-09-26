@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
@@ -57,6 +58,7 @@ fun SettingsScreen(
     onOpenAppearance: () -> Unit,
     onOpenCurrency: () -> Unit,
     onOpenBackup: () -> Unit,
+    onOpenAbout: () -> Unit,
     /** Opens the nav drawer. Null hides the hamburger icon. */
     onMenuClick: (() -> Unit)? = null,
 ) {
@@ -102,6 +104,12 @@ fun SettingsScreen(
             title = "Backup & restore",
             subtitle = "Export or import your data",
             onClick = onOpenBackup,
+        ),
+        SettingsEntry(
+            icon = Icons.Default.Info,
+            title = "About",
+            subtitle = "Version, source code, links",
+            onClick = onOpenAbout,
         ),
     )
 

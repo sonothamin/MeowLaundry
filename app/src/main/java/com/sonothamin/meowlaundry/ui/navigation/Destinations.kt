@@ -13,6 +13,7 @@ sealed class Destination(val route: String) {
     data object SettingsAppearance : Destination("settings/appearance")
     data object SettingsCurrency : Destination("settings/currency")
     data object SettingsBackup : Destination("settings/backup")
+    data object SettingsAbout : Destination("settings/about")
 
     data object ItemEditNew : Destination("item/new")
     data object ItemEdit : Destination("item/{itemId}/edit") {
