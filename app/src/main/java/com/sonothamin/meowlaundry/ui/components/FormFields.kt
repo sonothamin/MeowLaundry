@@ -102,7 +102,7 @@ fun SuggestionTextField(
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = imeAction),
             modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryEditable),
         )
-        ExposedDropdownMenu(expanded = showMenu, onDismissRequest = { expanded = false }) {
+        DropdownMenu(expanded = showMenu, onDismissRequest = { expanded = false }) {
             filtered.forEach { suggestion ->
                 DropdownMenuItem(
                     text = { Text(suggestion) },
@@ -161,7 +161,7 @@ fun CurrencyDropdown(
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
         )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { code ->
                 val isSelected = code == selected
                 DropdownMenuItem(

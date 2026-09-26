@@ -45,14 +45,22 @@ class EditTicketViewModel(
     private val ticketId: Long,
 ) : ViewModel() {
 
-    // Same pattern as SendToLaundry: previous providers first (most used first).
-    val providerSuggestions: StateFlow<List<String>> = repository.observeProviderHistory()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     private val _state = MutableStateFlow(EditTicketUiState())
     val state: StateFlow<EditTicketUiState> = _state.asStateFlow()
 
+    /** Providers used on past tickets, most recently used first. */
+    private val _providerHistory = MutableStateFlow<List<String>>(emptyList())
+
+    /** Past providers matching what's typed so far, most recently used first, current text excluded. */
+    val providerSuggestions: StateFlow<List<String>> = combine(_providerHistory, _state) { history, state ->
+        val typed = state.providerName.trim()
+        history.filter { it.contains(typed, ignoreCase = true) && !it.equals(typed, ignoreCase = true) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     init {
+        viewModelScope.launch {
+            _providerHistory.value = repository.getRecentProviderNames()
+        }
         viewModelScope.launch {
             val ticket = repository.getTicket(ticketId) ?: return@launch
             _state.update {
