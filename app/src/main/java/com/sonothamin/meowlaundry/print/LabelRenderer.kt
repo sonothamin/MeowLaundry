@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.text.TextUtils
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
@@ -74,7 +75,7 @@ object LabelRenderer {
         y += 30 // masthead title
         y += 26 // masthead subtitle
         y += 24 // gap + rule
-        y += 34 // service/provider row
+        y += 34 + (if (ticket.providerName.isNullOrBlank()) 0 else 24) // service label (+ provider subtext)
         y += 22 + 24 // item-count line + gap/rule
         garmentLines.forEach { g -> y += g.nameLines.size * 30 + (if (g.typeLine != null) 24 else 6) + 10 }
         y += 20 // gap + rule
@@ -98,8 +99,10 @@ object LabelRenderer {
 
         canvas.drawText(serviceLabel(ticket.serviceType), margin.toFloat(), cursorY.toFloat(), servicePaint)
         ticket.providerName?.takeIf { it.isNotBlank() }?.let { provider ->
-            val w = servicePaint.measureText(provider)
-            canvas.drawText(provider, WIDTH - margin - w, cursorY.toFloat(), servicePaint)
+            cursorY += 24
+            val displayProvider = TextUtils.ellipsize(provider, typePaint, usableWidth.toFloat(), TextUtils.TruncateAt.END).toString()
+            val w = typePaint.measureText(displayProvider)
+            canvas.drawText(displayProvider, WIDTH - margin - w, cursorY.toFloat(), typePaint)
         }
         cursorY += 34
         canvas.drawText(
