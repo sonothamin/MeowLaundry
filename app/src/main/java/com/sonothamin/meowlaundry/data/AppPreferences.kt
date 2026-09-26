@@ -18,6 +18,9 @@ enum class ThemeMode { LIGHT, DARK, SYSTEM }
 /** How the closet grid is laid out. */
 enum class ClosetViewMode { GRID, LIST }
 
+/** How the closet list is ordered. Session-only (not persisted) - defaults back to Newest each launch. */
+enum class ClosetSortOption { NEWEST, OLDEST, NAME_ASC, NAME_DESC, PRICE_HIGH, PRICE_LOW }
+
 /** Small app-wide preferences that aren't specific to the print server. */
 class AppPreferences(private val context: Context) {
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.sonothamin.meowlaundry.data.AppPreferences
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClosetRepository
+import com.sonothamin.meowlaundry.data.ClosetSortOption
 import com.sonothamin.meowlaundry.data.ClosetViewMode
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
@@ -33,6 +34,9 @@ class ClosetViewModel(
     private val _searchActive = MutableStateFlow(false)
     val searchActive: StateFlow<Boolean> = _searchActive
 
+    private val _sortOption = MutableStateFlow(ClosetSortOption.NEWEST)
+    val sortOption: StateFlow<ClosetSortOption> = _sortOption
+
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedIds: StateFlow<Set<Long>> = _selectedIds
 
@@ -59,11 +63,19 @@ class ClosetViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val items: StateFlow<List<ClothingItem>> = combine(allItemsForFilter, _searchQuery) { list, query ->
-        if (query.isBlank()) list
+    val items: StateFlow<List<ClothingItem>> = combine(allItemsForFilter, _searchQuery, _sortOption) { list, query, sort ->
+        val filtered = if (query.isBlank()) list
         else list.filter { item ->
             listOf(item.title, item.brand, item.color, item.garmentType, item.type.name)
                 .any { it?.contains(query, ignoreCase = true) == true }
+        }
+        when (sort) {
+            ClosetSortOption.NEWEST -> filtered.sortedByDescending { it.createdAt }
+            ClosetSortOption.OLDEST -> filtered.sortedBy { it.createdAt }
+            ClosetSortOption.NAME_ASC -> filtered.sortedBy { it.title.lowercase() }
+            ClosetSortOption.NAME_DESC -> filtered.sortedByDescending { it.title.lowercase() }
+            ClosetSortOption.PRICE_HIGH -> filtered.sortedByDescending { it.price ?: -1.0 }
+            ClosetSortOption.PRICE_LOW -> filtered.sortedBy { it.price ?: Double.MAX_VALUE }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -93,6 +105,10 @@ class ClosetViewModel(
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun setSortOption(option: ClosetSortOption) {
+        _sortOption.value = option
     }
 
     fun deleteItem(item: ClothingItem) {

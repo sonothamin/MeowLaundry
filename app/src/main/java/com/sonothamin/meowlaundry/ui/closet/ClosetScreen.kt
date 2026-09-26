@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.LargeTopAppBar
@@ -60,6 +61,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClosetViewMode
+import com.sonothamin.meowlaundry.data.ClosetSortOption
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.export.ExportUtils
 import com.sonothamin.meowlaundry.data.CurrencyAmount
@@ -88,6 +90,7 @@ fun ClosetScreen(
     val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
     val searchActive by viewModel.searchActive.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
     val selectionMode by viewModel.selectionMode.collectAsStateWithLifecycle()
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
 
@@ -202,17 +205,25 @@ fun ClosetScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (!selectionMode) {
-                ClosetSummaryBlock(
-                    inCloset = summary.inClosetCount,
-                    atLaundry = summary.atLaundryCount,
-                    lost = summary.lostCount,
-                    lostValues = summary.lostValues,
-                    onInClosetClick = { viewModel.setFilter(ClothingStatus.IN_CLOSET) },
-                    onAtLaundryClick = onOpenAtLaundry,
-                    onLostClick = onOpenLostArchive,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                )
+                // The three stat tiles (in closet/at laundry/lost) are shortcuts to jump into a
+                // filtered view - redundant screen real estate once the person is already
+                // narrowing things down by search. Swap them for filter + sort shortcuts instead.
+                if (!searchActive) {
+                    ClosetSummaryBlock(
+                        inCloset = summary.inClosetCount,
+                        atLaundry = summary.atLaundryCount,
+                        lost = summary.lostCount,
+                        lostValues = summary.lostValues,
+                        onInClosetClick = { viewModel.setFilter(ClothingStatus.IN_CLOSET) },
+                        onAtLaundryClick = onOpenAtLaundry,
+                        onLostClick = onOpenLostArchive,
+                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    )
+                }
                 FilterRow(selected = filter, onSelect = viewModel::setFilter)
+                if (searchActive) {
+                    SortRow(selected = sortOption, onSelect = viewModel::setSortOption)
+                }
             }
 
             if (items.isEmpty()) {
@@ -354,6 +365,38 @@ private fun StatTile(
             )
         }
     }
+}
+
+@Composable
+private fun SortRow(selected: ClosetSortOption, onSelect: (ClosetSortOption) -> Unit) {
+    val options = ClosetSortOption.entries
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        options.forEach { option ->
+            FilterChip(
+                selected = selected == option,
+                onClick = { onSelect(option) },
+                label = { Text(sortLabel(option)) },
+                leadingIcon = if (selected == option) {
+                    { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                } else null,
+            )
+        }
+    }
+}
+
+private fun sortLabel(option: ClosetSortOption): String = when (option) {
+    ClosetSortOption.NEWEST -> "Newest"
+    ClosetSortOption.OLDEST -> "Oldest"
+    ClosetSortOption.NAME_ASC -> "Name A\u2013Z"
+    ClosetSortOption.NAME_DESC -> "Name Z\u2013A"
+    ClosetSortOption.PRICE_HIGH -> "Price: high\u2013low"
+    ClosetSortOption.PRICE_LOW -> "Price: low\u2013high"
 }
 
 @Composable
