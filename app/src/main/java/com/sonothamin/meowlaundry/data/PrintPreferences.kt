@@ -15,8 +15,20 @@ private val Context.dataStore by preferencesDataStore(name = "print_settings")
  *  - NETWORK: talk to the MeowSpool HTTP API directly (see MeowSpoolClient).
  *  - SHARE_INTENT: hand the rendered label to the MeowSpool app itself via a share
  *    (ACTION_SEND) intent, exactly like sharing a photo to it from the gallery.
+ *  - NATIVE: hand the rendered label to Android's own print framework (PrintManager), which
+ *    opens the system print dialog - any printer the OS already knows about, "Save as PDF",
+ *    a cloud print service, etc. Not MeowSpool-specific.
  */
-enum class PrintMethod { NETWORK, SHARE_INTENT }
+enum class PrintMethod { NETWORK, SHARE_INTENT, NATIVE }
+
+/** The printed ticket's overall shape. */
+enum class TicketFormat {
+    /** An open continuous strip with dashed tear lines, like a real receipt roll. */
+    RECEIPT,
+
+    /** A bordered, self-contained card - suited to a sheet-fed printer via the system dialog. */
+    RECTANGULAR,
+}
 
 /** Everything needed to reach a MeowSpool print server, plus a couple of label defaults. */
 data class PrintServerSettings(
@@ -36,6 +48,8 @@ data class LabelCustomization(
     val footerText: String = "Please keep this ticket until pickup",
     /** Whether each garment's category (Top, Bottom...) prints as a line under its name. */
     val showGarmentType: Boolean = true,
+    /** Receipt strip or bordered rectangular card - see [TicketFormat]. */
+    val format: TicketFormat = TicketFormat.RECEIPT,
 )
 
 class PrintPreferences(private val context: Context) {
@@ -50,6 +64,7 @@ class PrintPreferences(private val context: Context) {
         val LABEL_HEADER = stringPreferencesKey("label_header")
         val LABEL_FOOTER = stringPreferencesKey("label_footer")
         val LABEL_SHOW_GARMENT_TYPE = androidx.datastore.preferences.core.booleanPreferencesKey("label_show_garment_type")
+        val LABEL_FORMAT = stringPreferencesKey("label_format")
     }
 
     val settings: Flow<PrintServerSettings> = context.dataStore.data.map { prefs ->
@@ -81,6 +96,9 @@ class PrintPreferences(private val context: Context) {
             headerText = prefs[Keys.LABEL_HEADER]?.takeIf { it.isNotBlank() } ?: "MeowLaundry",
             footerText = prefs[Keys.LABEL_FOOTER] ?: "Please keep this ticket until pickup",
             showGarmentType = prefs[Keys.LABEL_SHOW_GARMENT_TYPE] ?: true,
+            format = prefs[Keys.LABEL_FORMAT]
+                ?.let { runCatching { TicketFormat.valueOf(it) }.getOrNull() }
+                ?: TicketFormat.RECEIPT,
         )
     }
 
@@ -89,6 +107,7 @@ class PrintPreferences(private val context: Context) {
             prefs[Keys.LABEL_HEADER] = customization.headerText
             prefs[Keys.LABEL_FOOTER] = customization.footerText
             prefs[Keys.LABEL_SHOW_GARMENT_TYPE] = customization.showGarmentType
+            prefs[Keys.LABEL_FORMAT] = customization.format.name
         }
     }
 }

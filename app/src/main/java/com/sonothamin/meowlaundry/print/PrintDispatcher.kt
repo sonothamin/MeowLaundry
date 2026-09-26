@@ -3,6 +3,15 @@ package com.sonothamin.meowlaundry.print
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.Bundle
+import android.os.CancellationSignal
+import android.os.ParcelFileDescriptor
+import android.print.PageRange
+import android.print.PrintAttributes
+import android.print.PrintDocumentAdapter
+import android.print.PrintDocumentInfo
+import android.print.PrintManager
+import android.print.pdf.PrintedPdfDocument
 import androidx.core.content.FileProvider
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicket
@@ -11,6 +20,7 @@ import com.sonothamin.meowlaundry.data.PrintPreferences
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 
 /** Package name of the MeowSpool app (https://github.com/sonothamin/MeowSpool). */
 const val MEOWSPOOL_PACKAGE = "dev.meowspool"
@@ -71,6 +81,10 @@ class PrintDispatcher(
                 }
             }
             PrintMethod.SHARE_INTENT -> PrintOutcome.ShareReady(buildShareIntent(bitmaps))
+            PrintMethod.NATIVE -> {
+                printNative(bitmaps)
+                PrintOutcome.Printed("Opening print dialog…")
+            }
         }
     }
 
@@ -102,4 +116,92 @@ class PrintDispatcher(
         context.packageManager.getPackageInfo(MEOWSPOOL_PACKAGE, 0)
         true
     }.getOrDefault(false)
+
+    /**
+     * Hands the label(s) to Android's own print framework instead of MeowSpool: opens the
+     * system print dialog, which lists whatever printers/services the OS already knows about
+     * (Wi-Fi printers, "Save as PDF", cloud print services...). Each bitmap becomes one page.
+     */
+    private fun printNative(bitmaps: List<Bitmap>, jobName: String = "MeowLaundry ticket") {
+        val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
+        printManager.print(jobName, BitmapPrintDocumentAdapter(context, jobName, bitmaps), null)
+    }
+}
+
+/**
+ * Draws each label bitmap onto its own PDF page, scaled to fit the page while keeping its
+ * aspect ratio and anchored to the top, then hands that PDF to the print spooler - the
+ * standard "print my own custom-drawn content" recipe from Android's print framework.
+ */
+private class BitmapPrintDocumentAdapter(
+    private val context: Context,
+    private val jobName: String,
+    private val bitmaps: List<Bitmap>,
+) : PrintDocumentAdapter() {
+
+    private var pdfDocument: PrintedPdfDocument? = null
+
+    override fun onLayout(
+        oldAttributes: PrintAttributes,
+        newAttributes: PrintAttributes,
+        cancellationSignal: CancellationSignal,
+        callback: LayoutResultCallback,
+        extras: Bundle,
+    ) {
+        pdfDocument = PrintedPdfDocument(context, newAttributes)
+        if (cancellationSignal.isCanceled) {
+            callback.onLayoutCancelled()
+            return
+        }
+        if (bitmaps.isEmpty()) {
+            callback.onLayoutFailed("Nothing to print")
+            return
+        }
+        val info = PrintDocumentInfo.Builder(jobName)
+            .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+            .setPageCount(bitmaps.size)
+            .build()
+        callback.onLayoutFinished(info, oldAttributes != newAttributes)
+    }
+
+    override fun onWrite(
+        pages: Array<out PageRange>,
+        destination: ParcelFileDescriptor,
+        cancellationSignal: CancellationSignal,
+        callback: WriteResultCallback,
+    ) {
+        val doc = pdfDocument
+        if (doc == null) {
+            callback.onWriteFailed("Not laid out")
+            return
+        }
+        bitmaps.forEachIndexed { index, bitmap ->
+            if (cancellationSignal.isCanceled) {
+                callback.onWriteCancelled()
+                doc.close()
+                pdfDocument = null
+                return
+            }
+            val page = doc.startPage(index)
+            val pageWidth = doc.pageWidth.toFloat()
+            val pageHeight = doc.pageHeight.toFloat()
+            val scale = minOf(pageWidth / bitmap.width, pageHeight / bitmap.height)
+            val scaledWidth = bitmap.width * scale
+            val scaledHeight = bitmap.height * scale
+            val left = (pageWidth - scaledWidth) / 2f
+            val destRect = android.graphics.RectF(left, 0f, left + scaledWidth, scaledHeight)
+            page.canvas.drawBitmap(bitmap, null, destRect, null)
+            doc.finishPage(page)
+        }
+        try {
+            FileOutputStream(destination.fileDescriptor).use { out -> doc.writeTo(out) }
+        } catch (e: IOException) {
+            callback.onWriteFailed(e.message ?: "Print failed")
+            return
+        } finally {
+            doc.close()
+            pdfDocument = null
+        }
+        callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
+    }
 }

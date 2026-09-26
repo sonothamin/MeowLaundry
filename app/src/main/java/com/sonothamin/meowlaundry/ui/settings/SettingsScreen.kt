@@ -74,10 +74,10 @@ fun SettingsScreen(
         SettingsEntry(
             icon = Icons.Default.Print,
             title = "Print & label",
-            subtitle = if (printSettings.printMethod == PrintMethod.NETWORK) {
-                "Via IP" + printSettings.host.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
-            } else {
-                "Via app intent"
+            subtitle = when (printSettings.printMethod) {
+                PrintMethod.NETWORK -> "Via IP" + printSettings.host.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+                PrintMethod.SHARE_INTENT -> "Via app intent"
+                PrintMethod.NATIVE -> "Via system print dialog"
             },
             onClick = onOpenPrint,
         ),

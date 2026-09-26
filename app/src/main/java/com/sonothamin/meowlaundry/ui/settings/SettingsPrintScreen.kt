@@ -50,6 +50,7 @@ import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
 import com.sonothamin.meowlaundry.data.ServiceType
+import com.sonothamin.meowlaundry.data.TicketFormat
 import com.sonothamin.meowlaundry.print.LabelRenderer
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import kotlin.math.roundToInt
@@ -86,8 +87,9 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     var headerText by remember(labelCustomization.headerText) { mutableStateOf(labelCustomization.headerText) }
     var footerText by remember(labelCustomization.footerText) { mutableStateOf(labelCustomization.footerText) }
     var showGarmentType by remember(labelCustomization.showGarmentType) { mutableStateOf(labelCustomization.showGarmentType) }
+    var ticketFormat by remember(labelCustomization.format) { mutableStateOf(labelCustomization.format) }
     // Recomputed on every edit so the preview always reflects exactly what's about to be saved.
-    val previewCustomization = LabelCustomization(headerText, footerText, showGarmentType)
+    val previewCustomization = LabelCustomization(headerText, footerText, showGarmentType, ticketFormat)
     val previewBitmap = remember(previewCustomization) {
         LabelRenderer.renderTicket(previewTicket, previewGarments, previewCustomization)
     }
@@ -124,21 +126,28 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 SegmentedButton(
                     selected = printMethod == PrintMethod.NETWORK,
                     onClick = { printMethod = PrintMethod.NETWORK },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
                     label = { Text("IP") },
                 )
                 SegmentedButton(
                     selected = printMethod == PrintMethod.SHARE_INTENT,
                     onClick = { printMethod = PrintMethod.SHARE_INTENT },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
                     label = { Text("App intent") },
+                )
+                SegmentedButton(
+                    selected = printMethod == PrintMethod.NATIVE,
+                    onClick = { printMethod = PrintMethod.NATIVE },
+                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                    label = { Text("System") },
                 )
             }
             Text(
-                if (printMethod == PrintMethod.NETWORK) {
-                    "Talks to the MeowSpool HTTP API directly at the host/port below."
-                } else {
-                    "Hands the label to the MeowSpool app via a share intent - no host/port needed."
+                when (printMethod) {
+                    PrintMethod.NETWORK -> "Talks to the MeowSpool HTTP API directly at the host/port below."
+                    PrintMethod.SHARE_INTENT -> "Hands the label to the MeowSpool app via a share intent - no host/port needed."
+                    PrintMethod.NATIVE -> "Opens Android's own print dialog - any printer the OS knows about, " +
+                        "or \"Save as PDF\". Not MeowSpool-specific."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -194,6 +203,31 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             Text("Ticket layout", style = MaterialTheme.typography.titleMedium)
             Text(
                 "What prints on the ticket itself. The preview below updates as you type.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Text("Ticket format", style = MaterialTheme.typography.labelLarge)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = ticketFormat == TicketFormat.RECEIPT,
+                    onClick = { ticketFormat = TicketFormat.RECEIPT },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    label = { Text("Receipt") },
+                )
+                SegmentedButton(
+                    selected = ticketFormat == TicketFormat.RECTANGULAR,
+                    onClick = { ticketFormat = TicketFormat.RECTANGULAR },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    label = { Text("Rectangular") },
+                )
+            }
+            Text(
+                if (ticketFormat == TicketFormat.RECEIPT) {
+                    "An open continuous strip with dashed tear lines, like a thermal receipt."
+                } else {
+                    "A bordered, self-contained card - a good fit for a sheet-fed printer via System."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -9,6 +9,7 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.ServiceType
+import com.sonothamin.meowlaundry.data.TicketFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -39,6 +40,11 @@ object LabelRenderer {
         garments: List<ClothingItem>,
         customization: LabelCustomization = LabelCustomization(),
     ): Bitmap {
+        val rectangular = customization.format == TicketFormat.RECTANGULAR
+        // Rectangular gets a slightly deeper margin so the border drawn around it afterwards
+        // doesn't crowd the content.
+        val margin = if (rectangular) MARGIN + 12 else MARGIN
+
         val titlePaint = textPaint(size = 30f, bold = true, align = Paint.Align.CENTER)
         val servicePaint = textPaint(size = 26f, bold = true)
         val metaPaint = textPaint(size = 19f, align = Paint.Align.CENTER)
@@ -48,7 +54,7 @@ object LabelRenderer {
         val footerPaint = textPaint(size = 18f, color = Color.rgb(90, 90, 90))
 
         val dateFormat = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
-        val usableWidth = WIDTH - 2 * MARGIN
+        val usableWidth = WIDTH - 2 * margin
         val indexColumnWidth = 34
 
         data class GarmentLines(val nameLines: List<String>, val typeLine: String?)
@@ -64,7 +70,7 @@ object LabelRenderer {
         }
 
         // First pass: measure total height so the bitmap is exactly as tall as it needs to be.
-        var y = MARGIN
+        var y = margin
         y += 30 // masthead title
         y += 26 // masthead subtitle
         y += 24 // gap + rule
@@ -73,13 +79,13 @@ object LabelRenderer {
         garmentLines.forEach { g -> y += g.nameLines.size * 30 + (if (g.typeLine != null) 24 else 6) + 10 }
         y += 20 // gap + rule
         y += 22 // footer line
-        val height = y + MARGIN / 2
+        val height = y + margin / 2
 
         val bitmap = Bitmap.createBitmap(WIDTH, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.WHITE)
 
-        var cursorY = MARGIN + 28
+        var cursorY = margin + 28
         canvas.drawCenteredText(customization.headerText.ifBlank { "MeowLaundry" }, cursorY.toFloat(), titlePaint)
         cursorY += 30
         canvas.drawCenteredText(
@@ -88,41 +94,51 @@ object LabelRenderer {
             metaPaint,
         )
         cursorY += 24
-        cursorY = canvas.drawDashedRule(cursorY)
+        cursorY = canvas.drawRule(cursorY, margin, dashed = !rectangular)
 
-        canvas.drawText(serviceLabel(ticket.serviceType), MARGIN.toFloat(), cursorY.toFloat(), servicePaint)
+        canvas.drawText(serviceLabel(ticket.serviceType), margin.toFloat(), cursorY.toFloat(), servicePaint)
         ticket.providerName?.takeIf { it.isNotBlank() }?.let { provider ->
             val w = servicePaint.measureText(provider)
-            canvas.drawText(provider, WIDTH - MARGIN - w, cursorY.toFloat(), servicePaint)
+            canvas.drawText(provider, WIDTH - margin - w, cursorY.toFloat(), servicePaint)
         }
         cursorY += 34
         canvas.drawText(
             "${garments.size} garment${if (garments.size == 1) "" else "s"} · check each one on return",
-            MARGIN.toFloat(),
+            margin.toFloat(),
             cursorY.toFloat(),
             footerPaint,
         )
         cursorY += 22
-        cursorY = canvas.drawDashedRule(cursorY)
+        cursorY = canvas.drawRule(cursorY, margin, dashed = !rectangular)
 
         garmentLines.forEachIndexed { index, g ->
             val rowTop = cursorY
-            canvas.drawText("${index + 1}.", MARGIN.toFloat(), rowTop.toFloat(), indexPaint)
+            canvas.drawText("${index + 1}.", margin.toFloat(), rowTop.toFloat(), indexPaint)
             var lineY = rowTop
             g.nameLines.forEach { line ->
-                canvas.drawText(line, (MARGIN + indexColumnWidth).toFloat(), lineY.toFloat(), namePaint)
+                canvas.drawText(line, (margin + indexColumnWidth).toFloat(), lineY.toFloat(), namePaint)
                 lineY += 30
             }
-            g.typeLine?.let { canvas.drawText(it, (MARGIN + indexColumnWidth).toFloat(), lineY.toFloat(), typePaint) }
+            g.typeLine?.let { canvas.drawText(it, (margin + indexColumnWidth).toFloat(), lineY.toFloat(), typePaint) }
             cursorY = lineY + (if (g.typeLine != null) 24 else 6) + 10
         }
 
-        cursorY = canvas.drawDashedRule(cursorY - 10 + 6)
+        cursorY = canvas.drawRule(cursorY - 10 + 6, margin, dashed = !rectangular)
         canvas.drawCenteredText(
             customization.footerText.ifBlank { "Please keep this ticket until pickup" },
             cursorY.toFloat(),
             metaPaint,
         )
+
+        if (rectangular) {
+            val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(40, 40, 40)
+                style = Paint.Style.STROKE
+                strokeWidth = 4f
+            }
+            val inset = 6f
+            canvas.drawRoundRect(inset, inset, WIDTH - inset, height - inset, 16f, 16f, borderPaint)
+        }
 
         return bitmap
     }
@@ -201,14 +217,18 @@ object LabelRenderer {
         paint.textAlign = original
     }
 
-    /** Draws a dashed rule (a quieter section break than a solid bar) and returns the next cursor Y. */
-    private fun Canvas.drawDashedRule(y: Int): Int {
+    /** Draws a section break and returns the next cursor Y: dashed for a receipt, a solid thin rule for a card. */
+    private fun Canvas.drawRule(y: Int, margin: Int, dashed: Boolean): Int {
         val paint = Paint().apply { color = Color.rgb(70, 70, 70); strokeWidth = 2f }
-        var x = MARGIN
+        if (!dashed) {
+            drawLine(margin.toFloat(), y.toFloat(), (WIDTH - margin).toFloat(), y.toFloat(), paint)
+            return y + 24
+        }
+        var x = margin
         val dash = 6
         val gap = 6
-        while (x < WIDTH - MARGIN) {
-            val end = (x + dash).coerceAtMost(WIDTH - MARGIN)
+        while (x < WIDTH - margin) {
+            val end = (x + dash).coerceAtMost(WIDTH - margin)
             drawLine(x.toFloat(), y.toFloat(), end.toFloat(), y.toFloat(), paint)
             x += dash + gap
         }
