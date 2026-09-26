@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -76,6 +77,8 @@ fun ClosetScreen(
     onAddItem: () -> Unit,
     onOpenItem: (Long) -> Unit,
     onSendSelectedToLaundry: (List<Long>) -> Unit,
+    onOpenAtLaundry: () -> Unit,
+    onOpenLostArchive: () -> Unit,
     /** Opens the nav drawer. Null hides the hamburger icon (e.g. when embedded without a drawer). */
     onMenuClick: (() -> Unit)? = null,
 ) {
@@ -204,6 +207,9 @@ fun ClosetScreen(
                     atLaundry = summary.atLaundryCount,
                     lost = summary.lostCount,
                     lostValues = summary.lostValues,
+                    onInClosetClick = { viewModel.setFilter(ClothingStatus.IN_CLOSET) },
+                    onAtLaundryClick = onOpenAtLaundry,
+                    onLostClick = onOpenLostArchive,
                     modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
                 )
                 FilterRow(selected = filter, onSelect = viewModel::setFilter)
@@ -278,33 +284,35 @@ private fun ClosetSummaryBlock(
     atLaundry: Int,
     lost: Int,
     lostValues: List<CurrencyAmount>,
+    onInClosetClick: () -> Unit,
+    onAtLaundryClick: () -> Unit,
+    onLostClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scheme = MaterialTheme.colorScheme
     val lostTotal = lostValues.filter { it.total > 0 }
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         StatTile(
             icon = Icons.Default.Checkroom,
             value = inCloset.toString(),
             label = "In closet",
-            container = scheme.tertiaryContainer,
-            content = scheme.onTertiaryContainer,
+            active = inCloset > 0,
+            onClick = onInClosetClick,
             modifier = Modifier.weight(1f),
         )
         StatTile(
             icon = Icons.Default.LocalLaundryService,
             value = atLaundry.toString(),
             label = "At laundry",
-            container = scheme.primaryContainer,
-            content = scheme.onPrimaryContainer,
+            active = atLaundry > 0,
+            onClick = onAtLaundryClick,
             modifier = Modifier.weight(1f),
         )
         StatTile(
             icon = Icons.Default.ReportProblem,
             value = lost.toString(),
             label = if (lostTotal.isEmpty()) "Lost" else lostTotal.joinToString(" + ") { Currencies.format(it.total, it.currency) },
-            container = if (lost > 0) scheme.errorContainer else scheme.surfaceContainerHigh,
-            content = if (lost > 0) scheme.onErrorContainer else scheme.onSurfaceVariant,
+            active = lost > 0,
+            onClick = onLostClick,
             modifier = Modifier.weight(1f),
         )
     }
@@ -315,11 +323,20 @@ private fun StatTile(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     value: String,
     label: String,
-    container: androidx.compose.ui.graphics.Color,
-    content: androidx.compose.ui.graphics.Color,
+    /** All three tiles share one look; the only thing that changes is whether there's anything to show. */
+    active: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier, shape = MaterialTheme.shapes.large, color = container, contentColor = content) {
+    val scheme = MaterialTheme.colorScheme
+    val container = if (active) scheme.primaryContainer else scheme.surfaceContainerHigh
+    val content = if (active) scheme.onPrimaryContainer else scheme.onSurfaceVariant
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.large,
+        color = container,
+        contentColor = content,
+    ) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
             Text(

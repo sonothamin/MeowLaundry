@@ -8,6 +8,11 @@ sealed class Destination(val route: String) {
     data object Archive : Destination("archive")
     data object Stats : Destination("stats")
     data object Settings : Destination("settings")
+    data object SettingsPrint : Destination("settings/print")
+    data object SettingsReminders : Destination("settings/reminders")
+    data object SettingsAppearance : Destination("settings/appearance")
+    data object SettingsCurrency : Destination("settings/currency")
+    data object SettingsBackup : Destination("settings/backup")
 
     data object ItemEditNew : Destination("item/new")
     data object ItemEdit : Destination("item/{itemId}/edit") {

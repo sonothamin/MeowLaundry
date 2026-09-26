@@ -40,6 +40,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.sonothamin.meowlaundry.MeowLaundryApp
+import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.ui.LambdaViewModelFactory
 import com.sonothamin.meowlaundry.ui.archive.ArchiveScreen
 import com.sonothamin.meowlaundry.ui.archive.ArchiveViewModel
@@ -58,6 +59,11 @@ import com.sonothamin.meowlaundry.ui.laundry.SendToLaundryViewModel
 import com.sonothamin.meowlaundry.ui.laundry.TicketDetailScreen
 import com.sonothamin.meowlaundry.ui.laundry.TicketDetailViewModel
 import com.sonothamin.meowlaundry.ui.onboarding.OnboardingScreen
+import com.sonothamin.meowlaundry.ui.settings.SettingsAppearanceScreen
+import com.sonothamin.meowlaundry.ui.settings.SettingsBackupScreen
+import com.sonothamin.meowlaundry.ui.settings.SettingsCurrencyScreen
+import com.sonothamin.meowlaundry.ui.settings.SettingsPrintScreen
+import com.sonothamin.meowlaundry.ui.settings.SettingsRemindersScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsScreen
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import com.sonothamin.meowlaundry.ui.stats.StatsScreen
@@ -186,6 +192,23 @@ fun MeowLaundryNavHost(
                     onAddItem = { navController.navigate(Destination.ItemEditNew.route) },
                     onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
                     onSendSelectedToLaundry = { ids -> navController.navigate(Destination.SendToLaundry.route(ids)) },
+                    // "At laundry" and "Lost" tiles jump to the tab that actually shows that stuff,
+                    // the same way picking it from the drawer would (fresh screen, not a stacked page).
+                    onOpenAtLaundry = {
+                        navController.navigate(Destination.Laundry.route) {
+                            popUpTo(Destination.Closet.route) { saveState = false }
+                            launchSingleTop = true
+                            restoreState = false
+                        }
+                    },
+                    onOpenLostArchive = {
+                        app.pendingArchiveReasonFilter = ArchiveReason.LOST
+                        navController.navigate(Destination.Archive.route) {
+                            popUpTo(Destination.Closet.route) { saveState = false }
+                            launchSingleTop = true
+                            restoreState = false
+                        }
+                    },
                     onMenuClick = { scope.launch { drawerState.open() } },
                 )
             }
@@ -315,7 +338,12 @@ fun MeowLaundryNavHost(
 
             composable(Destination.Archive.route) {
                 val vm: ArchiveViewModel = viewModel(
-                    factory = LambdaViewModelFactory { ArchiveViewModel(app.repository) },
+                    factory = LambdaViewModelFactory {
+                        ArchiveViewModel(
+                            app.repository,
+                            initialReasonFilter = app.pendingArchiveReasonFilter.also { app.pendingArchiveReasonFilter = null },
+                        )
+                    },
                 )
                 ArchiveScreen(
                     viewModel = vm,
@@ -341,7 +369,60 @@ fun MeowLaundryNavHost(
                         SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
                     },
                 )
-                SettingsScreen(viewModel = vm, onMenuClick = { scope.launch { drawerState.open() } })
+                SettingsScreen(
+                    viewModel = vm,
+                    onOpenPrint = { navController.navigate(Destination.SettingsPrint.route) },
+                    onOpenReminders = { navController.navigate(Destination.SettingsReminders.route) },
+                    onOpenAppearance = { navController.navigate(Destination.SettingsAppearance.route) },
+                    onOpenCurrency = { navController.navigate(Destination.SettingsCurrency.route) },
+                    onOpenBackup = { navController.navigate(Destination.SettingsBackup.route) },
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                )
+            }
+
+            composable(Destination.SettingsPrint.route) {
+                val vm: SettingsViewModel = viewModel(
+                    factory = LambdaViewModelFactory {
+                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
+                    },
+                )
+                SettingsPrintScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+
+            composable(Destination.SettingsReminders.route) {
+                val vm: SettingsViewModel = viewModel(
+                    factory = LambdaViewModelFactory {
+                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
+                    },
+                )
+                SettingsRemindersScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+
+            composable(Destination.SettingsAppearance.route) {
+                val vm: SettingsViewModel = viewModel(
+                    factory = LambdaViewModelFactory {
+                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
+                    },
+                )
+                SettingsAppearanceScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+
+            composable(Destination.SettingsCurrency.route) {
+                val vm: SettingsViewModel = viewModel(
+                    factory = LambdaViewModelFactory {
+                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
+                    },
+                )
+                SettingsCurrencyScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+
+            composable(Destination.SettingsBackup.route) {
+                val vm: SettingsViewModel = viewModel(
+                    factory = LambdaViewModelFactory {
+                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
+                    },
+                )
+                SettingsBackupScreen(viewModel = vm, onBack = { navController.popBackStack() })
             }
         }
     }
