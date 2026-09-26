@@ -204,7 +204,7 @@ object LabelRenderer {
     }
 
     private fun textPaint(size: Float, bold: Boolean = false, color: Int = Color.BLACK, align: Paint.Align = Paint.Align.LEFT) =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color
             textSize = size
             textAlign = align
