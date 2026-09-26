@@ -28,6 +28,16 @@ data class PrintServerSettings(
     val printMethod: PrintMethod = PrintMethod.SHARE_INTENT,
 )
 
+/** What goes on the printed ticket itself, as opposed to how it reaches the printer. */
+data class LabelCustomization(
+    /** Masthead line at the top of the ticket. Defaults to the app's own name. */
+    val headerText: String = "MeowLaundry",
+    /** Line at the bottom of the ticket, e.g. a pickup reminder or a shop's own note. */
+    val footerText: String = "Please keep this ticket until pickup",
+    /** Whether each garment's category (Top, Bottom...) prints as a line under its name. */
+    val showGarmentType: Boolean = true,
+)
+
 class PrintPreferences(private val context: Context) {
 
     private object Keys {
@@ -37,6 +47,9 @@ class PrintPreferences(private val context: Context) {
         val DARKNESS = intPreferencesKey("darkness")
         val DITHER = stringPreferencesKey("dither")
         val PRINT_METHOD = stringPreferencesKey("print_method")
+        val LABEL_HEADER = stringPreferencesKey("label_header")
+        val LABEL_FOOTER = stringPreferencesKey("label_footer")
+        val LABEL_SHOW_GARMENT_TYPE = androidx.datastore.preferences.core.booleanPreferencesKey("label_show_garment_type")
     }
 
     val settings: Flow<PrintServerSettings> = context.dataStore.data.map { prefs ->
@@ -60,6 +73,22 @@ class PrintPreferences(private val context: Context) {
             prefs[Keys.DARKNESS] = settings.darkness
             prefs[Keys.DITHER] = settings.dither
             prefs[Keys.PRINT_METHOD] = settings.printMethod.name
+        }
+    }
+
+    val labelCustomization: Flow<LabelCustomization> = context.dataStore.data.map { prefs ->
+        LabelCustomization(
+            headerText = prefs[Keys.LABEL_HEADER]?.takeIf { it.isNotBlank() } ?: "MeowLaundry",
+            footerText = prefs[Keys.LABEL_FOOTER] ?: "Please keep this ticket until pickup",
+            showGarmentType = prefs[Keys.LABEL_SHOW_GARMENT_TYPE] ?: true,
+        )
+    }
+
+    suspend fun updateLabelCustomization(customization: LabelCustomization) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.LABEL_HEADER] = customization.headerText
+            prefs[Keys.LABEL_FOOTER] = customization.footerText
+            prefs[Keys.LABEL_SHOW_GARMENT_TYPE] = customization.showGarmentType
         }
     }
 }

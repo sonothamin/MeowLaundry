@@ -29,6 +29,7 @@ class AppPreferences(private val context: Context) {
         val UI_FONT = stringPreferencesKey("ui_font")
         val REMINDERS_ENABLED = booleanPreferencesKey("reminders_enabled")
         val REMINDER_HOUR = intPreferencesKey("reminder_hour")
+        val REMINDER_MINUTE = intPreferencesKey("reminder_minute")
         val LAST_REMINDER_DAY = longPreferencesKey("last_reminder_day")
     }
 
@@ -63,6 +64,13 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setReminderHour(hour: Int) {
         context.appDataStore.edit { it[Keys.REMINDER_HOUR] = hour.coerceIn(0, 23) }
+    }
+
+    /** Minute within [reminderHour] (0-59, local time) the daily reminder check runs. */
+    val reminderMinute: Flow<Int> = context.appDataStore.data.map { it[Keys.REMINDER_MINUTE] ?: 0 }
+
+    suspend fun setReminderMinute(minute: Int) {
+        context.appDataStore.edit { it[Keys.REMINDER_MINUTE] = minute.coerceIn(0, 59) }
     }
 
     /** Epoch day of the last reminder run, so a rescheduled worker never notifies twice in one day. */

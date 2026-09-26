@@ -47,16 +47,16 @@ object Reminders {
     /** Applies the saved settings: schedules the daily check, or cancels it when reminders are off. */
     suspend fun sync(app: MeowLaundryApp) {
         if (app.appPreferences.remindersEnabled.first()) {
-            schedule(app, app.appPreferences.reminderHour.first(), replace = false)
+            schedule(app, app.appPreferences.reminderHour.first(), app.appPreferences.reminderMinute.first(), replace = false)
         } else {
             cancel(app)
         }
     }
 
-    /** [replace] restarts the schedule (needed when the hour changes); otherwise an existing one is kept. */
-    fun schedule(context: Context, hour: Int, replace: Boolean) {
+    /** [replace] restarts the schedule (needed when the time changes); otherwise an existing one is kept. */
+    fun schedule(context: Context, hour: Int, minute: Int, replace: Boolean) {
         val now = LocalDateTime.now()
-        var next = now.toLocalDate().atTime(hour, 0)
+        var next = now.toLocalDate().atTime(hour, minute)
         if (!next.isAfter(now)) next = next.plusDays(1)
         val request = PeriodicWorkRequestBuilder<ReminderWorker>(24, TimeUnit.HOURS)
             .setInitialDelay(Duration.between(now, next).toMillis(), TimeUnit.MILLISECONDS)

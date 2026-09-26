@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import com.sonothamin.meowlaundry.data.ClothingItem
+import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.ServiceType
 import java.text.SimpleDateFormat
@@ -33,7 +34,11 @@ object LabelRenderer {
         ServiceType.DRY_CLEAN -> "Dry clean"
     }
 
-    fun renderTicket(ticket: LaundryTicket, garments: List<ClothingItem>): Bitmap {
+    fun renderTicket(
+        ticket: LaundryTicket,
+        garments: List<ClothingItem>,
+        customization: LabelCustomization = LabelCustomization(),
+    ): Bitmap {
         val titlePaint = textPaint(size = 30f, bold = true, align = Paint.Align.CENTER)
         val servicePaint = textPaint(size = 26f, bold = true)
         val metaPaint = textPaint(size = 19f, align = Paint.Align.CENTER)
@@ -46,11 +51,15 @@ object LabelRenderer {
         val usableWidth = WIDTH - 2 * MARGIN
         val indexColumnWidth = 34
 
-        data class GarmentLines(val nameLines: List<String>, val typeLine: String)
+        data class GarmentLines(val nameLines: List<String>, val typeLine: String?)
         val garmentLines = garments.map { garment ->
             GarmentLines(
                 nameLines = wrapText(garment.title, namePaint, usableWidth - indexColumnWidth),
-                typeLine = garment.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                typeLine = if (customization.showGarmentType) {
+                    garment.type.name.lowercase().replaceFirstChar { it.uppercase() }
+                } else {
+                    null
+                },
             )
         }
 
@@ -61,7 +70,7 @@ object LabelRenderer {
         y += 24 // gap + rule
         y += 34 // service/provider row
         y += 22 + 24 // item-count line + gap/rule
-        garmentLines.forEach { g -> y += g.nameLines.size * 30 + 24 + 10 }
+        garmentLines.forEach { g -> y += g.nameLines.size * 30 + (if (g.typeLine != null) 24 else 6) + 10 }
         y += 20 // gap + rule
         y += 22 // footer line
         val height = y + MARGIN / 2
@@ -71,7 +80,7 @@ object LabelRenderer {
         canvas.drawColor(Color.WHITE)
 
         var cursorY = MARGIN + 28
-        canvas.drawCenteredText("MeowLaundry", cursorY.toFloat(), titlePaint)
+        canvas.drawCenteredText(customization.headerText.ifBlank { "MeowLaundry" }, cursorY.toFloat(), titlePaint)
         cursorY += 30
         canvas.drawCenteredText(
             "Ticket #${ticket.id} · ${dateFormat.format(Date(ticket.sentAt))}",
@@ -104,12 +113,16 @@ object LabelRenderer {
                 canvas.drawText(line, (MARGIN + indexColumnWidth).toFloat(), lineY.toFloat(), namePaint)
                 lineY += 30
             }
-            canvas.drawText(g.typeLine, (MARGIN + indexColumnWidth).toFloat(), lineY.toFloat(), typePaint)
-            cursorY = lineY + 24 + 10
+            g.typeLine?.let { canvas.drawText(it, (MARGIN + indexColumnWidth).toFloat(), lineY.toFloat(), typePaint) }
+            cursorY = lineY + (if (g.typeLine != null) 24 else 6) + 10
         }
 
         cursorY = canvas.drawDashedRule(cursorY - 10 + 6)
-        canvas.drawCenteredText("Please keep this ticket until pickup", cursorY.toFloat(), metaPaint)
+        canvas.drawCenteredText(
+            customization.footerText.ifBlank { "Please keep this ticket until pickup" },
+            cursorY.toFloat(),
+            metaPaint,
+        )
 
         return bitmap
     }

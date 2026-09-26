@@ -8,7 +8,6 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.LaundryTicketItem
 import com.sonothamin.meowlaundry.data.TicketStatus
-import com.sonothamin.meowlaundry.print.LabelRenderer
 import com.sonothamin.meowlaundry.print.PrintDispatcher
 import com.sonothamin.meowlaundry.print.PrintOutcome
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -183,6 +182,6 @@ class TicketDetailViewModel(
             _events.emit(TicketDetailEvent.Message("Nothing to print yet"))
             return null
         }
-        return LabelRenderer.renderTicket(ticket, garments)
+        return printDispatcher.renderTicket(ticket, garments)
     }
 }

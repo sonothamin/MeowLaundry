@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.export.ExportUtils
-import com.sonothamin.meowlaundry.print.LabelRenderer
 import com.sonothamin.meowlaundry.print.PrintDispatcher
 import com.sonothamin.meowlaundry.print.PrintOutcome
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -205,7 +204,7 @@ class LaundryViewModel(
         ids.forEach { id ->
             val ticket = repository.getTicket(id) ?: return@forEach
             val garments = repository.observeGarmentsForTicket(id).first()
-            bitmaps += LabelRenderer.renderTicket(ticket, garments)
+            bitmaps += printDispatcher.renderTicket(ticket, garments)
         }
         return bitmaps
     }

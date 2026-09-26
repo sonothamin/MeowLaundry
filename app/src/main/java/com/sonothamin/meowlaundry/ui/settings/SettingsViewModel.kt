@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sonothamin.meowlaundry.data.AppPreferences
+import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.PrintPreferences
 import com.sonothamin.meowlaundry.data.PrintServerSettings
 import com.sonothamin.meowlaundry.data.ThemeMode
@@ -38,6 +39,13 @@ class SettingsViewModel(
     val printSettings: StateFlow<PrintServerSettings> = printPreferences.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PrintServerSettings())
 
+    val labelCustomization: StateFlow<LabelCustomization> = printPreferences.labelCustomization
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LabelCustomization())
+
+    fun updateLabelCustomization(customization: LabelCustomization) {
+        viewModelScope.launch { printPreferences.updateLabelCustomization(customization) }
+    }
+
     val themeMode: StateFlow<ThemeMode> = appPreferences.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThemeMode.SYSTEM)
 
@@ -62,21 +70,31 @@ class SettingsViewModel(
     val reminderHour: StateFlow<Int> = appPreferences.reminderHour
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 9)
 
+    val reminderMinute: StateFlow<Int> = appPreferences.reminderMinute
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     fun setRemindersEnabled(enabled: Boolean) {
         viewModelScope.launch {
             appPreferences.setRemindersEnabled(enabled)
             if (enabled) {
-                Reminders.schedule(appContext, appPreferences.reminderHour.first(), replace = true)
+                Reminders.schedule(
+                    appContext,
+                    appPreferences.reminderHour.first(),
+                    appPreferences.reminderMinute.first(),
+                    replace = true,
+                )
             } else {
                 Reminders.cancel(appContext)
             }
         }
     }
 
-    fun setReminderHour(hour: Int) {
+    /** Sets the exact time of day the daily reminder check runs, and reschedules it immediately. */
+    fun setReminderTime(hour: Int, minute: Int) {
         viewModelScope.launch {
             appPreferences.setReminderHour(hour)
-            if (appPreferences.remindersEnabled.first()) Reminders.schedule(appContext, hour, replace = true)
+            appPreferences.setReminderMinute(minute)
+            if (appPreferences.remindersEnabled.first()) Reminders.schedule(appContext, hour, minute, replace = true)
         }
     }
 

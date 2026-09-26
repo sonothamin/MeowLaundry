@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.core.content.FileProvider
+import com.sonothamin.meowlaundry.data.ClothingItem
+import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintPreferences
 import kotlinx.coroutines.flow.first
@@ -34,6 +36,10 @@ class PrintDispatcher(
     private val context: Context,
     private val printPreferences: PrintPreferences,
 ) {
+
+    /** Renders one ticket's label using whatever customization the person set in Settings. */
+    suspend fun renderTicket(ticket: LaundryTicket, garments: List<ClothingItem>): Bitmap =
+        LabelRenderer.renderTicket(ticket, garments, printPreferences.labelCustomization.first())
 
     /** Renders and prints a single label. */
     suspend fun dispatch(bitmap: Bitmap): PrintOutcome = dispatchMultiple(listOf(bitmap))
