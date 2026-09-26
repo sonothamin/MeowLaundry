@@ -82,6 +82,13 @@ fun TicketCard(
         },
         label = "ticket-card-container",
     )
+    // Text/icon color for anything drawn directly on `container`. Selected swaps the card to
+    // primaryContainer, which needs onPrimaryContainer for real contrast - onSurfaceVariant
+    // (tuned for the neutral surface tones) reads as faint gray-on-gray there.
+    val onContainer by animateColorAsState(
+        targetValue = if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant,
+        label = "ticket-card-oncontainer",
+    )
     val (badgeBg, badgeFg) = when {
         selected -> scheme.primary to scheme.onPrimary
         overdue -> scheme.errorContainer to scheme.onErrorContainer
@@ -95,7 +102,10 @@ fun TicketCard(
         // clip before clickable so the ripple follows the rounded corners
         modifier = modifier.fillMaxWidth().clip(shape).combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = container),
+        colors = CardDefaults.cardColors(
+            containerColor = container,
+            contentColor = if (selected) scheme.onPrimaryContainer else scheme.onSurface,
+        ),
     ) {
         Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
             // Header
@@ -116,7 +126,7 @@ fun TicketCard(
                         text = listOfNotNull("Ticket #${ticket.id}", ticket.providerName?.takeIf { it.isNotBlank() })
                             .joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium,
-                        color = scheme.onSurfaceVariant,
+                        color = onContainer,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -168,13 +178,13 @@ fun TicketCard(
                 Icon(
                     Icons.Default.Schedule,
                     contentDescription = null,
-                    tint = scheme.onSurfaceVariant,
+                    tint = onContainer,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
                     text = sentLabel(ticket.sentAt, ticket.receivedAt),
                     style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
+                    color = onContainer,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(start = Spacing.xs).weight(1f),
