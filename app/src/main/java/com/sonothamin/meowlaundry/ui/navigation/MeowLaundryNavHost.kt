@@ -228,6 +228,15 @@ fun MeowLaundryNavHost(
                     onEdit = { id -> navController.navigate(Destination.ItemEdit.route(id)) },
                     onSendToLaundry = { id -> navController.navigate(Destination.SendToLaundry.route(listOf(id))) },
                     onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) },
+                    // Swap in the neighboring garment without growing the back stack, so Back still
+                    // returns to wherever this screen was first opened from, not through every item
+                    // swiped past along the way.
+                    onSwipeToItem = { id ->
+                        navController.navigate(Destination.ArticleView.route(id)) {
+                            popUpTo(Destination.ArticleView.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
 

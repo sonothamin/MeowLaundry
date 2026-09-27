@@ -4,6 +4,7 @@ import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,13 +69,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -104,8 +108,11 @@ fun ArticleViewScreen(
     onEdit: (Long) -> Unit,
     onSendToLaundry: (Long) -> Unit,
     onOpenTicket: (Long) -> Unit,
+    /** Swiped to a neighboring garment; the caller re-points navigation at [Long] without growing the back stack. */
+    onSwipeToItem: (Long) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val navState by viewModel.navState.collectAsStateWithLifecycle()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showArchiveDialog by remember { mutableStateOf(false) }
     var detailsExpanded by remember { mutableStateOf(false) }
@@ -179,7 +186,38 @@ fun ArticleViewScreen(
         val dateFormat = remember { SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()) }
         val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
 
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // Swipe left/right anywhere on the content to page to the neighboring garment (same order
+        // Closet/Archive shows it in). Read through rememberUpdatedState so the drag callbacks -
+        // set up once via pointerInput(Unit) - always see the latest neighbor ids without restarting
+        // mid-gesture.
+        val latestNavState = rememberUpdatedState(navState)
+        val latestOnSwipe = rememberUpdatedState(onSwipeToItem)
+        var dragAccumPx by remember { mutableStateOf(0f) }
+        val swipeThresholdPx = with(LocalDensity.current) { 96.dp.toPx() }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragAccumPx = 0f },
+                        onHorizontalDrag = { change, dragAmount ->
+                            dragAccumPx += dragAmount
+                            change.consume()
+                        },
+                        onDragEnd = {
+                            val nav = latestNavState.value
+                            when {
+                                dragAccumPx > swipeThresholdPx -> nav.previousId?.let(latestOnSwipe.value)
+                                dragAccumPx < -swipeThresholdPx -> nav.nextId?.let(latestOnSwipe.value)
+                            }
+                            dragAccumPx = 0f
+                        },
+                        onDragCancel = { dragAccumPx = 0f },
+                    )
+                },
+        ) {
             // --- Hero: square crop (no letterboxing) with the Material extra-large rounded corners ---
             item {
                 Box(
