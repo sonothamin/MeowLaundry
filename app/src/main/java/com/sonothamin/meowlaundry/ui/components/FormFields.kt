@@ -34,7 +34,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -241,8 +240,8 @@ private fun CurrencyPickerSheet(
     selected: String,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
-    sheetState: SheetState = rememberModalBottomSheetState(),
 ) {
+    val sheetState = rememberModalBottomSheetState()
     var query by remember { mutableStateOf("") }
     val options = remember(selected) { Currencies.options(selected) }
     val filtered = remember(query, options) {
