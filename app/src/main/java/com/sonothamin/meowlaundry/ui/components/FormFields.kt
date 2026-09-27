@@ -8,25 +8,40 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +62,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.sonothamin.meowlaundry.data.Currencies
 import com.sonothamin.meowlaundry.data.Suggestions
+import com.sonothamin.meowlaundry.ui.theme.Spacing
 
 /** Small round colour swatch, outlined so white/cream stay visible on light surfaces. */
 @Composable
@@ -138,10 +154,11 @@ fun ColorField(
 }
 
 /**
- * Read-only currency dropdown. The field shows just the 3-letter code ("USD"); the menu lists each
- * option as a symbol column plus its code, with the current one highlighted.
+ * Currency selector styled as a filled tonal field (MD3 Expressive favours colour and depth over
+ * thin outlines for a control this important). Tapping it opens [CurrencyPickerSheet], a searchable
+ * bottom sheet — replacing the old bare dropdown list, which just dumped forty options on screen
+ * with no way to filter and no visual hierarchy.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CurrencyDropdown(
     selected: String,
@@ -149,45 +166,161 @@ fun CurrencyDropdown(
     modifier: Modifier = Modifier,
     label: String = "Currency",
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val options = remember(selected) { Currencies.options(selected) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
-        OutlinedTextField(
-            value = selected,
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { code ->
-                val isSelected = code == selected
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Symbol column keeps the codes aligned; blank when the symbol is just the code again.
-                            Text(
-                                Currencies.symbolOrNull(code).orEmpty(),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.width(36.dp),
-                            )
-                            Text(
-                                code,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else null,
-                            )
-                        }
-                    },
-                    onClick = {
-                        onSelect(code)
-                        expanded = false
-                    },
+    var showSheet by remember { mutableStateOf(false) }
+
+    Surface(
+        onClick = { showSheet = true },
+        modifier = modifier.heightIn(min = 56.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            CurrencyBadge(code = selected)
+            Column(modifier = Modifier.weight(1f, fill = false)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Text(
+                    selected,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
                 )
             }
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
+    if (showSheet) {
+        CurrencyPickerSheet(
+            selected = selected,
+            onSelect = {
+                onSelect(it)
+                showSheet = false
+            },
+            onDismiss = { showSheet = false },
+        )
+    }
+}
+
+/** Small tonal circle carrying a currency's symbol (or its first letter, as a fallback). */
+@Composable
+private fun CurrencyBadge(code: String, modifier: Modifier = Modifier, filled: Boolean = false) {
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(if (filled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            Currencies.symbolOrNull(code) ?: code.take(1),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (filled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+    }
+}
+
+/** Full-height searchable currency picker. Filters by code or display name as you type. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CurrencyPickerSheet(
+    selected: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+    sheetState: SheetState = rememberModalBottomSheetState(),
+) {
+    var query by remember { mutableStateOf("") }
+    val options = remember(selected) { Currencies.options(selected) }
+    val filtered = remember(query, options) {
+        val q = query.trim()
+        if (q.isEmpty()) options
+        else options.filter {
+            it.contains(q, ignoreCase = true) || Currencies.displayName(it).contains(q, ignoreCase = true)
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md)) {
+            Text(
+                "Choose a currency",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(Spacing.md))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Search by code or name") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.extraLarge,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(Spacing.sm))
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                contentPadding = PaddingValues(bottom = Spacing.lg),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                items(filtered, key = { it }) { code ->
+                    val isSelected = code == selected
+                    Surface(
+                        onClick = { onSelect(code) },
+                        shape = MaterialTheme.shapes.large,
+                        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            CurrencyBadge(code = code, filled = isSelected)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(code, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    Currencies.displayName(code),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                            }
+                        }
+                    }
+                }
+                if (filtered.isEmpty()) {
+                    item {
+                        Text(
+                            "No currencies match \"$query\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = Spacing.lg),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.navigationBarsPadding())
         }
     }
 }
