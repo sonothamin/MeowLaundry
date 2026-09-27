@@ -46,13 +46,14 @@ object LabelRenderer {
         // doesn't crowd the content.
         val margin = if (rectangular) MARGIN + 12 else MARGIN
 
-        val titlePaint = textPaint(size = 30f, bold = true, align = Paint.Align.CENTER)
-        val servicePaint = textPaint(size = 26f, bold = true)
-        val metaPaint = textPaint(size = 19f, align = Paint.Align.CENTER)
-        val indexPaint = textPaint(size = 23f, bold = true)
-        val namePaint = textPaint(size = 23f)
-        val typePaint = textPaint(size = 18f, color = Color.rgb(90, 90, 90))
-        val footerPaint = textPaint(size = 18f, color = Color.rgb(90, 90, 90))
+        val family = customization.font.typefaceFamily
+        val titlePaint = textPaint(size = 30f, bold = true, align = Paint.Align.CENTER, fontFamily = family)
+        val servicePaint = textPaint(size = 26f, bold = true, fontFamily = family)
+        val metaPaint = textPaint(size = 19f, align = Paint.Align.CENTER, fontFamily = family)
+        val indexPaint = textPaint(size = 23f, bold = true, fontFamily = family)
+        val namePaint = textPaint(size = 23f, fontFamily = family)
+        val typePaint = textPaint(size = 18f, color = Color.rgb(90, 90, 90), fontFamily = family)
+        val footerPaint = textPaint(size = 18f, color = Color.rgb(90, 90, 90), fontFamily = family)
 
         val dateFormat = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
         val usableWidth = WIDTH - 2 * margin
@@ -203,13 +204,18 @@ object LabelRenderer {
         return y + bandHeight
     }
 
-    private fun textPaint(size: Float, bold: Boolean = false, color: Int = Color.BLACK, align: Paint.Align = Paint.Align.LEFT) =
-        android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = color
-            textSize = size
-            textAlign = align
-            if (bold) typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-        }
+    private fun textPaint(
+        size: Float,
+        bold: Boolean = false,
+        color: Int = Color.BLACK,
+        align: Paint.Align = Paint.Align.LEFT,
+        fontFamily: String = "sans-serif",
+    ) = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color
+        textSize = size
+        textAlign = align
+        typeface = Typeface.create(fontFamily, if (bold) Typeface.BOLD else Typeface.NORMAL)
+    }
 
     // Draws at the canvas's horizontal center regardless of the paint's own alignment, so a
     // caller that forgets to set Paint.Align.CENTER can't silently clip text off the label edge.

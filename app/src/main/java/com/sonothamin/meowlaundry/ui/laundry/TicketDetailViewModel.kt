@@ -7,6 +7,7 @@ import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.LaundryTicketItem
+import com.sonothamin.meowlaundry.data.TicketFormat
 import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.print.PrintDispatcher
 import com.sonothamin.meowlaundry.print.PrintOutcome
@@ -39,6 +40,8 @@ data class TicketDetailUiState(
     val edits: Map<Long, ItemDecision> = emptyMap(),
     val isPrinting: Boolean = false,
     val previewBitmap: Bitmap? = null,
+    /** The ticket format the preview above was rendered in - decides what the export button does. */
+    val previewFormat: TicketFormat = TicketFormat.RECEIPT,
 ) {
     fun savedDecision(garmentId: Long): ItemDecision {
         val item = ticketItems.find { it.clothingItemId == garmentId } ?: return ItemDecision.PENDING
@@ -73,6 +76,7 @@ class TicketDetailViewModel(
     private val edits = MutableStateFlow<Map<Long, ItemDecision>>(emptyMap())
     private val isPrinting = MutableStateFlow(false)
     private val previewBitmap = MutableStateFlow<Bitmap?>(null)
+    private val previewFormat = MutableStateFlow(TicketFormat.RECEIPT)
 
     private val _events = MutableSharedFlow<TicketDetailEvent>()
     val events: SharedFlow<TicketDetailEvent> = _events
@@ -86,6 +90,7 @@ class TicketDetailViewModel(
         TicketDetailUiState(ticket, garments, ticketItems, edits)
     }.combine(isPrinting) { s, printing -> s.copy(isPrinting = printing) }
         .combine(previewBitmap) { s, preview -> s.copy(previewBitmap = preview) }
+        .combine(previewFormat) { s, format -> s.copy(previewFormat = format) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TicketDetailUiState())
 
     /** Picks a decision for one garment. Picking what's already saved simply clears the unsaved change. */
@@ -148,8 +153,21 @@ class TicketDetailViewModel(
     fun previewTicket() {
         viewModelScope.launch {
             val bitmap = renderCurrentLabel() ?: return@launch
+            previewFormat.value = printDispatcher.currentFormat()
             previewBitmap.value = bitmap
         }
+    }
+
+    /**
+     * Writes the current ticket as a real text PDF to [output] (e.g. an opened file-picker
+     * stream) - used by the preview dialog's export action when the ticket format is
+     * [TicketFormat.PAGE], so exporting a document saves a document, not a screenshot of one.
+     */
+    suspend fun writeTicketPdf(output: java.io.OutputStream) {
+        val ticket = repository.getTicket(ticketId) ?: return
+        val garments = state.value.garments
+        if (garments.isEmpty()) return
+        printDispatcher.writeTicketPdf(ticket, garments, output)
     }
 
     fun dismissPreview() {

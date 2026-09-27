@@ -3,6 +3,7 @@ package com.sonothamin.meowlaundry.ui.laundry
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Event
@@ -70,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,8 +87,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingItem
+import com.sonothamin.meowlaundry.data.TicketFormat
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.DueDates
 import com.sonothamin.meowlaundry.data.DueState
@@ -119,6 +124,7 @@ fun TicketDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     // Lets the person save the rendered label as a PNG anywhere they like (Downloads, Photos, a
     // cloud folder...) via the system file picker - no storage permission needed for this.
     var pendingExportBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -131,6 +137,19 @@ fun TicketDetailScreen(
             runCatching {
                 context.contentResolver.openOutputStream(uri)?.use { out ->
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                }
+            }
+        }
+    }
+    // Same idea, but for the real text-PDF ticket format: a document should export as a
+    // document, not a rasterized picture of one.
+    val exportPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf"),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { out -> viewModel.writeTicketPdf(out) }
                 }
             }
         }
@@ -311,28 +330,35 @@ fun TicketDetailScreen(
     state.previewBitmap?.let { bitmap ->
         LabelPreviewDialog(
             bitmap = bitmap,
+            format = state.previewFormat,
             onDismiss = viewModel::dismissPreview,
             onPrint = { viewModel.dismissPreview(); viewModel.printTicket() },
             onExportPng = {
                 pendingExportBitmap = bitmap
                 exportPngLauncher.launch("meowlaundry-ticket-${ticket?.id}.png")
             },
+            onExportPdf = { exportPdfLauncher.launch("meowlaundry-ticket-${ticket?.id}.pdf") },
         )
     }
 }
 
 /**
- * Shows the rendered thermal label the way it'll actually look on paper: the bitmap sits on its
- * own white "receipt" strip with a soft shadow and a light frame, inside a rounded sheet, rather
- * than as a small image squeezed into a generic alert box.
+ * Shows the rendered ticket the way it'll actually come out. A receipt or rectangular card is
+ * shown the way it'll print - a small strip/card on its own white surface with a soft shadow -
+ * and exports as a PNG. The [TicketFormat.PAGE] format is treated as what it actually is, a
+ * document: a plain white page (page-proportioned, not squeezed to a small strip), described as
+ * a page rather than a printer label, and exported as a real PDF rather than a screenshot of one.
  */
 @Composable
 private fun LabelPreviewDialog(
     bitmap: android.graphics.Bitmap,
+    format: TicketFormat,
     onDismiss: () -> Unit,
     onPrint: () -> Unit,
     onExportPng: () -> Unit,
+    onExportPdf: () -> Unit,
 ) {
+    val isDocument = format == TicketFormat.PAGE
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
@@ -348,38 +374,48 @@ private fun LabelPreviewDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Default.Receipt,
+                        if (isDocument) Icons.Default.Description else Icons.Default.Receipt,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp),
                     )
                     Text(
-                        "Label preview",
+                        if (isDocument) "Document preview" else "Label preview",
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(start = Spacing.sm).weight(1f),
                     )
-                    IconButton(onClick = onExportPng) {
-                        Icon(Icons.Default.FileDownload, contentDescription = "Save as PNG")
+                    IconButton(onClick = if (isDocument) onExportPdf else onExportPng) {
+                        Icon(
+                            Icons.Default.FileDownload,
+                            contentDescription = if (isDocument) "Save as PDF" else "Save as PNG",
+                        )
                     }
                 }
                 Text(
-                    "This is exactly what will come out of the printer.",
+                    if (isDocument) {
+                        "This is the first page of the document. Paper size follows whatever printer or " +
+                            "\"Save as PDF\" you pick next."
+                    } else {
+                        "This is exactly what will come out of the printer."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = Spacing.md),
                 )
 
-                // Receipt strip: a fixed-width white card, its own shadow, sitting on the dialog's
-                // tonal background so it reads as "paper" rather than a plain inline image.
+                // A document gets a full-width page (an A4/Letter proportion, not a narrow strip)
+                // with a hairline border, like a sheet of paper sitting on the dialog's tonal
+                // background; a receipt/card keeps the narrow printer-strip presentation.
                 Surface(
-                    shape = MaterialTheme.shapes.medium,
+                    shape = if (isDocument) MaterialTheme.shapes.small else MaterialTheme.shapes.medium,
                     color = Color.White,
                     shadowElevation = 4.dp,
-                    modifier = Modifier.widthIn(max = 260.dp),
+                    border = if (isDocument) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
+                    modifier = if (isDocument) Modifier.fillMaxWidth() else Modifier.widthIn(max = 260.dp),
                 ) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Rendered ticket label preview",
+                        contentDescription = if (isDocument) "Preview of the printed document" else "Rendered ticket label preview",
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 420.dp)

@@ -14,6 +14,7 @@ import android.print.PrintManager
 import android.print.pdf.PrintedPdfDocument
 import androidx.core.content.FileProvider
 import com.sonothamin.meowlaundry.data.ClothingItem
+import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintPreferences
@@ -58,6 +59,20 @@ class PrintDispatcher(
         }
     }
 
+    /** The ticket format currently chosen in Settings - lets a caller tailor its UI to it (e.g. the preview dialog's export action). */
+    suspend fun currentFormat(): TicketFormat = printPreferences.labelCustomization.first().format
+
+    /** Writes a single ticket as a real text PDF, sized for whatever paper is the locale default. */
+    suspend fun writeTicketPdf(ticket: LaundryTicket, garments: List<ClothingItem>, output: java.io.OutputStream) {
+        val customization = printPreferences.labelCustomization.first()
+        val doc = PdfPageRenderer.buildDocument(ticket, garments, customization)
+        try {
+            doc.writeTo(output)
+        } finally {
+            doc.close()
+        }
+    }
+
     /**
      * Prints a single ticket, picking the right pipeline for the chosen [TicketFormat]: the
      * thermal bitmap path for Receipt/Rectangular, or a real text PDF for [TicketFormat.PAGE]
@@ -85,36 +100,52 @@ class PrintDispatcher(
         }
 
         val settings = printPreferences.settings.first()
-        val pdfDir = File(context.cacheDir, "print_share").apply { mkdirs() }
         val jobName = if (nonEmpty.size == 1) {
             "MeowLaundry ticket #${nonEmpty.first().first.id}"
         } else {
             "MeowLaundry tickets (${nonEmpty.size})"
         }
+
+        if (settings.printMethod == PrintMethod.NATIVE) {
+            // Let the system print dialog itself decide the paper size: the document is built
+            // fresh in onLayout() for whatever media size the person picks there, rather than
+            // pre-rendered once at a size guessed in advance and then just handed over - that
+            // guess is exactly what used to crop or letterbox the page on any other paper size.
+            printPdfNative(nonEmpty, customization, jobName)
+            return PrintOutcome.Printed("Opening print dialog…")
+        }
+
+        // No print dialog to ask here, so fall back to a locale-appropriate default (A4 or
+        // Letter) for the plain "share this PDF" path.
+        val pdfDir = File(context.cacheDir, "print_share").apply { mkdirs() }
         val fileName = if (nonEmpty.size == 1) "ticket_${nonEmpty.first().first.id}" else "tickets_${nonEmpty.size}"
         val file = File(pdfDir, "${fileName}_${System.currentTimeMillis()}.pdf")
         PdfPageRenderer.writeMultiToFile(nonEmpty, customization, file)
 
-        return if (settings.printMethod == PrintMethod.NATIVE) {
-            printPdfNative(file, jobName)
-            PrintOutcome.Printed("Opening print dialog…")
-        } else {
-            // A thermal printer (MeowSpool) can't take a full-page PDF, so Page format always
-            // goes out as a plain PDF share instead of the MeowSpool-only intent used elsewhere.
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                putExtra(Intent.EXTRA_STREAM, uri)
-                type = "application/pdf"
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            PrintOutcome.ShareReady(intent)
+        // A thermal printer (MeowSpool) can't take a full-page PDF, so Page format always goes
+        // out as a plain PDF share instead of the MeowSpool-only intent used elsewhere.
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            putExtra(Intent.EXTRA_STREAM, uri)
+            type = "application/pdf"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+        return PrintOutcome.ShareReady(intent)
     }
 
-    /** Hands an already-rendered real PDF file straight to the system print dialog, unchanged. */
-    private fun printPdfNative(file: File, jobName: String) {
+    /**
+     * Hands the tickets to the system print dialog without pre-baking a page size: the actual
+     * PDF is built inside [TicketPagePrintDocumentAdapter.onLayout] once the person has chosen
+     * (or the OS has defaulted to) a paper size there, so the document always matches the paper
+     * it's printed or saved to, on any size the dialog offers.
+     */
+    private fun printPdfNative(
+        tickets: List<Pair<LaundryTicket, List<ClothingItem>>>,
+        customization: LabelCustomization,
+        jobName: String,
+    ) {
         val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-        printManager.print(jobName, FilePrintDocumentAdapter(file, jobName), null)
+        printManager.print(jobName, TicketPagePrintDocumentAdapter(tickets, customization, jobName), null)
     }
 
     /** Renders and prints a single label. */
@@ -273,15 +304,18 @@ private class BitmapPrintDocumentAdapter(
 }
 
 /**
- * Streams an already-rendered real PDF file (real text, built by [PdfPageRenderer]) straight to
- * the print spooler as-is - no bitmap re-rasterization, so the printed/saved result keeps its
- * selectable text. `newAttributes`/paper size are ignored: the page size was already baked in
- * when the PDF was built from the person's chosen [com.sonothamin.meowlaundry.data.PageSize].
+ * Builds the real text PDF fresh in [onLayout], sized to whatever paper the system print dialog
+ * actually asks for (`newAttributes.mediaSize`) - so "Save as PDF" on Letter and printing on A4
+ * both come out correctly sized, instead of a page rendered once at a guessed size and cropped
+ * or letterboxed to fit whatever the dialog later settled on.
  */
-private class FilePrintDocumentAdapter(
-    private val file: File,
+private class TicketPagePrintDocumentAdapter(
+    private val tickets: List<Pair<LaundryTicket, List<ClothingItem>>>,
+    private val customization: LabelCustomization,
     private val jobName: String,
 ) : PrintDocumentAdapter() {
+
+    private var document: android.graphics.pdf.PdfDocument? = null
 
     override fun onLayout(
         oldAttributes: PrintAttributes,
@@ -294,9 +328,21 @@ private class FilePrintDocumentAdapter(
             callback.onLayoutCancelled()
             return
         }
-        val info = PrintDocumentInfo.Builder(jobName)
+        // MediaSize is in thousandths of an inch; PDF points are 1/72 inch.
+        val mediaSize = newAttributes.mediaSize
+        val widthPt = mediaSize?.let { (it.widthMils * 72 / 1000) } ?: com.sonothamin.meowlaundry.data.defaultPageSize().widthPt
+        val heightPt = mediaSize?.let { (it.heightMils * 72 / 1000) } ?: com.sonothamin.meowlaundry.data.defaultPageSize().heightPt
+
+        document?.close()
+        val built = PdfPageRenderer.buildMultiDocument(tickets, customization, widthPt, heightPt)
+        document = built
+
+        val info = PrintDocumentInfo.Builder("$jobName.pdf")
             .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+            .setPageCount(built.pages.size)
             .build()
+        // Always true: the page count/content is rebuilt from scratch for every layout pass
+        // (paper size or orientation may have changed), so there is no "unchanged" case to skip.
         callback.onLayoutFinished(info, true)
     }
 
@@ -306,14 +352,22 @@ private class FilePrintDocumentAdapter(
         cancellationSignal: CancellationSignal,
         callback: WriteResultCallback,
     ) {
+        val doc = document
+        if (doc == null) {
+            callback.onWriteFailed("Not laid out")
+            return
+        }
         try {
-            file.inputStream().use { input ->
-                FileOutputStream(destination.fileDescriptor).use { out -> input.copyTo(out) }
-            }
+            FileOutputStream(destination.fileDescriptor).use { out -> doc.writeTo(out) }
         } catch (e: IOException) {
             callback.onWriteFailed(e.message ?: "Print failed")
             return
         }
         callback.onWriteFinished(arrayOf(PageRange.ALL_PAGES))
+    }
+
+    override fun onFinish() {
+        document?.close()
+        document = null
     }
 }

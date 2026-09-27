@@ -62,7 +62,7 @@ import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.PDF_HEADER_COLOR_PRESETS
-import com.sonothamin.meowlaundry.data.PageSize
+import com.sonothamin.meowlaundry.data.LabelFont
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
 import com.sonothamin.meowlaundry.data.ServiceType
@@ -105,10 +105,17 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     var footerText by remember(labelCustomization.footerText) { mutableStateOf(labelCustomization.footerText) }
     var showGarmentType by remember(labelCustomization.showGarmentType) { mutableStateOf(labelCustomization.showGarmentType) }
     var ticketFormat by remember(labelCustomization.format) { mutableStateOf(labelCustomization.format) }
-    var pageSize by remember(labelCustomization.pageSize) { mutableStateOf(labelCustomization.pageSize) }
     var headerColor by remember(labelCustomization.headerColor) { mutableStateOf(labelCustomization.headerColor) }
+    var font by remember(labelCustomization.font) { mutableStateOf(labelCustomization.font) }
     // Recomputed on every edit so the preview always reflects exactly what's about to be saved.
-    val previewCustomization = LabelCustomization(headerText, footerText, showGarmentType, ticketFormat, pageSize, headerColor)
+    val previewCustomization = LabelCustomization(
+        headerText = headerText,
+        footerText = footerText,
+        showGarmentType = showGarmentType,
+        format = ticketFormat,
+        headerColor = headerColor,
+        font = font,
+    )
     val previewBitmap = remember(previewCustomization) {
         if (previewCustomization.format == TicketFormat.PAGE) {
             PdfPageRenderer.renderPreviewBitmap(previewTicket, previewGarments, previewCustomization)
@@ -263,8 +270,12 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             )
 
             if (ticketFormat == TicketFormat.PAGE) {
-                Text("Paper size", style = MaterialTheme.typography.labelLarge)
-                PageSizeDropdown(selected = pageSize, onSelect = { pageSize = it })
+                Text(
+                    "Paper size follows whatever you pick in the print dialog itself (or \u201cSave as PDF\u201d), " +
+                        "so the page is never cropped to a size chosen here ahead of time.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
                 Text("Header color", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
@@ -313,6 +324,9 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 Text("Show each garment's category (Top, Bottom...)", modifier = Modifier.padding(start = Spacing.sm))
             }
 
+            Text("Font", style = MaterialTheme.typography.labelLarge)
+            FontRow(selected = font, onSelect = { font = it })
+
             Text("Preview", style = MaterialTheme.typography.labelLarge)
             Surface(
                 shape = MaterialTheme.shapes.medium,
@@ -359,41 +373,17 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     }
 }
 
-/** Dropdown list of standard paper sizes, grouped by family (ISO 216 vs. North American). */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Segmented picker for the small, curated set of print fonts. */
 @Composable
-private fun PageSizeDropdown(selected: PageSize, onSelect: (PageSize) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = "${selected.label} (${selected.dimensions})",
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Paper size") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            PageSize.entries.groupBy { it.family }.forEach { (family, sizes) ->
-                Text(
-                    family,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                )
-                sizes.forEach { size ->
-                    DropdownMenuItem(
-                        text = { Text("${size.label}  \u00b7  ${size.dimensions}") },
-                        onClick = {
-                            onSelect(size)
-                            expanded = false
-                        },
-                        trailingIcon = {
-                            if (size == selected) Icon(Icons.Default.Check, contentDescription = null)
-                        },
-                    )
-                }
-            }
+private fun FontRow(selected: LabelFont, onSelect: (LabelFont) -> Unit) {
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        LabelFont.entries.forEachIndexed { index, font ->
+            SegmentedButton(
+                selected = selected == font,
+                onClick = { onSelect(font) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = LabelFont.entries.size),
+                label = { Text(font.displayName) },
+            )
         }
     }
 }

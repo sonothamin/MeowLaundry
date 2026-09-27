@@ -14,6 +14,7 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.ServiceType
+import com.sonothamin.meowlaundry.data.defaultPageSize
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -55,13 +56,18 @@ object PdfPageRenderer {
         ServiceType.DRY_CLEAN -> "Dry clean"
     }
 
-    private fun paint(size: Float, bold: Boolean = false, color: Int = Color.BLACK, align: Paint.Align = Paint.Align.LEFT) =
-        TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = size
-            this.color = color
-            textAlign = align
-            if (bold) typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-        }
+    private fun paint(
+        size: Float,
+        bold: Boolean = false,
+        color: Int = Color.BLACK,
+        align: Paint.Align = Paint.Align.LEFT,
+        fontFamily: String = "sans-serif",
+    ) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = size
+        this.color = color
+        textAlign = align
+        typeface = Typeface.create(fontFamily, if (bold) Typeface.BOLD else Typeface.NORMAL)
+    }
 
     private fun linePaint(color: Int = HAIRLINE, width: Float = 1f) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.color = color
@@ -99,9 +105,11 @@ object PdfPageRenderer {
     fun buildMultiDocument(
         tickets: List<Pair<LaundryTicket, List<ClothingItem>>>,
         customization: LabelCustomization,
+        pageWidthPt: Int = defaultPageSize().widthPt,
+        pageHeightPt: Int = defaultPageSize().heightPt,
     ): PdfDocument {
-        val pageWidth = customization.pageSize.widthPt
-        val pageHeight = customization.pageSize.heightPt
+        val pageWidth = pageWidthPt
+        val pageHeight = pageHeightPt
         val contentWidth = pageWidth - 2 * MARGIN
         val firstPageAvailable = pageHeight - MARGIN - BAND_HEIGHT - 24f - STAT_BOX_HEIGHT - 20f - 22f - FOOTER_RESERVE
         val laterPageAvailable = pageHeight - MARGIN - 40f - FOOTER_RESERVE
@@ -144,8 +152,13 @@ object PdfPageRenderer {
         return doc
     }
 
-    fun buildDocument(ticket: LaundryTicket, garments: List<ClothingItem>, customization: LabelCustomization): PdfDocument =
-        buildMultiDocument(listOf(ticket to garments), customization)
+    fun buildDocument(
+        ticket: LaundryTicket,
+        garments: List<ClothingItem>,
+        customization: LabelCustomization,
+        pageWidthPt: Int = defaultPageSize().widthPt,
+        pageHeightPt: Int = defaultPageSize().heightPt,
+    ): PdfDocument = buildMultiDocument(listOf(ticket to garments), customization, pageWidthPt, pageHeightPt)
 
     private fun drawTicketPage(
         canvas: android.graphics.Canvas,
@@ -162,6 +175,10 @@ object PdfPageRenderer {
         globalPageNumber: Int,
         totalPages: Int,
     ) {
+        val family = customization.font.typefaceFamily
+        fun p(size: Float, bold: Boolean = false, color: Int = Color.BLACK, align: Paint.Align = Paint.Align.LEFT) =
+            this.paint(size, bold, color, align, family)
+
         var y: Float
 
         if (isFirstPageOfTicket) {
@@ -171,10 +188,10 @@ object PdfPageRenderer {
                 customization.headerText.ifBlank { "MeowLaundry" },
                 MARGIN,
                 BAND_HEIGHT / 2f + 8f,
-                paint(22f, bold = true, color = Color.WHITE),
+                p(22f, bold = true, color = Color.WHITE),
             )
             val meta = "Ticket #${ticket.id}  \u00b7  ${dateFormat.format(Date(ticket.sentAt))}"
-            val metaPaint = paint(10f, color = Color.WHITE, align = Paint.Align.RIGHT)
+            val metaPaint = p(10f, color = Color.WHITE, align = Paint.Align.RIGHT)
             canvas.drawText(meta, pageWidth - MARGIN, BAND_HEIGHT / 2f + 4f, metaPaint)
 
             y = BAND_HEIGHT + 24f
@@ -195,13 +212,13 @@ object PdfPageRenderer {
                 val rect = RectF(left, y, left + boxWidth, y + STAT_BOX_HEIGHT)
                 canvas.drawRoundRect(rect, 8f, 8f, fillPaint(ROW_SHADE))
                 canvas.drawRoundRect(rect, 8f, 8f, linePaint())
-                canvas.drawText(label, left + 10f, y + 18f, paint(8f, bold = true, color = MUTED))
-                val valuePaint = paint(if (value.length > 14) 11f else 13f, bold = true)
+                canvas.drawText(label, left + 10f, y + 18f, p(8f, bold = true, color = MUTED))
+                val valuePaint = p(if (value.length > 14) 11f else 13f, bold = true)
                 canvas.drawText(value, left + 10f, y + 36f, valuePaint)
             }
             y += STAT_BOX_HEIGHT + 20f
 
-            canvas.drawText("Garments \u00b7 Check each one on return", MARGIN, y, paint(13f, bold = true))
+            canvas.drawText("Garments \u00b7 Check each one on return", MARGIN, y, p(13f, bold = true))
             y += 10f
             canvas.drawLine(MARGIN, y, pageWidth - MARGIN, y, linePaint())
             y += 16f
@@ -210,7 +227,7 @@ object PdfPageRenderer {
                 "${customization.headerText.ifBlank { "MeowLaundry" }} \u2014 Ticket #${ticket.id} (continued)",
                 MARGIN,
                 MARGIN,
-                paint(12f, bold = true, color = MUTED),
+                p(12f, bold = true, color = MUTED),
             )
             y = MARGIN + 20f
             canvas.drawLine(MARGIN, y, pageWidth - MARGIN, y, linePaint())
@@ -230,15 +247,15 @@ object PdfPageRenderer {
                 "${index + 1}",
                 MARGIN + 14f,
                 centerY + 4f,
-                paint(10f, bold = true, color = customization.headerColor, align = Paint.Align.CENTER),
+                p(10f, bold = true, color = customization.headerColor, align = Paint.Align.CENTER),
             )
 
-            val namePaint = paint(12.5f)
+            val namePaint = p(12.5f)
             canvas.drawText(garment.title, MARGIN + 34f, centerY + 4f, namePaint)
 
             if (customization.showGarmentType) {
                 val typeLabel = garment.type.name.lowercase().replaceFirstChar { it.uppercase() }
-                val tagPaint = paint(9f, color = MUTED, align = Paint.Align.RIGHT)
+                val tagPaint = p(9f, color = MUTED, align = Paint.Align.RIGHT)
                 val tagWidth = tagPaint.measureText(typeLabel) + 16f
                 val tagRight = pageWidth - MARGIN - 4f
                 val tagRect = RectF(tagRight - tagWidth, centerY - 9f, tagRight, centerY + 9f)
@@ -253,9 +270,9 @@ object PdfPageRenderer {
         if (isLastPageOfTicket) {
             canvas.drawText(
                 customization.footerText.ifBlank { "Please keep this ticket until pickup" },
-                MARGIN,
+                pageWidth / 2f,
                 footerY - 6f,
-                paint(9.5f, color = MUTED),
+                p(9.5f, color = MUTED, align = Paint.Align.CENTER),
             )
         }
         if (totalPages > 1) {
@@ -263,14 +280,21 @@ object PdfPageRenderer {
                 "Page $globalPageNumber of $totalPages",
                 pageWidth - MARGIN,
                 footerY - 6f,
-                paint(9f, color = MUTED, align = Paint.Align.RIGHT),
+                p(9f, color = MUTED, align = Paint.Align.RIGHT),
             )
         }
     }
 
     /** Writes [buildDocument]'s output to [file] and closes the document. */
-    fun writeToFile(ticket: LaundryTicket, garments: List<ClothingItem>, customization: LabelCustomization, file: File) {
-        writeMultiToFile(listOf(ticket to garments), customization, file)
+    fun writeToFile(
+        ticket: LaundryTicket,
+        garments: List<ClothingItem>,
+        customization: LabelCustomization,
+        file: File,
+        pageWidthPt: Int = defaultPageSize().widthPt,
+        pageHeightPt: Int = defaultPageSize().heightPt,
+    ) {
+        writeMultiToFile(listOf(ticket to garments), customization, file, pageWidthPt, pageHeightPt)
     }
 
     /** Writes [buildMultiDocument]'s output (one page break per ticket) to [file] and closes it. */
@@ -278,8 +302,10 @@ object PdfPageRenderer {
         tickets: List<Pair<LaundryTicket, List<ClothingItem>>>,
         customization: LabelCustomization,
         file: File,
+        pageWidthPt: Int = defaultPageSize().widthPt,
+        pageHeightPt: Int = defaultPageSize().heightPt,
     ) {
-        val doc = buildMultiDocument(tickets, customization)
+        val doc = buildMultiDocument(tickets, customization, pageWidthPt, pageHeightPt)
         try {
             FileOutputStream(file).use { doc.writeTo(it) }
         } finally {
