@@ -76,8 +76,8 @@ class PrintDispatcher(
     /**
      * Prints a single ticket, picking the right pipeline for the chosen [TicketFormat]: the
      * thermal bitmap path for Receipt/Rectangular, or a real text PDF for [TicketFormat.PAGE]
-     * (which a thermal printer can't use, so that format always goes through the system print
-     * dialog or a generic "share this PDF" sheet instead of MeowSpool).
+     * (which a thermal printer can't use, so that format always goes through Android's own
+     * system print dialog instead of MeowSpool).
      */
     suspend fun dispatchTicket(ticket: LaundryTicket, garments: List<ClothingItem>): PrintOutcome =
         dispatchTickets(listOf(ticket to garments))
@@ -99,38 +99,19 @@ class PrintDispatcher(
             return dispatchMultiple(bitmaps)
         }
 
-        val settings = printPreferences.settings.first()
         val jobName = if (nonEmpty.size == 1) {
             "MeowLaundry ticket #${nonEmpty.first().first.id}"
         } else {
             "MeowLaundry tickets (${nonEmpty.size})"
         }
 
-        if (settings.printMethod == PrintMethod.NATIVE) {
-            // Let the system print dialog itself decide the paper size: the document is built
-            // fresh in onLayout() for whatever media size the person picks there, rather than
-            // pre-rendered once at a size guessed in advance and then just handed over - that
-            // guess is exactly what used to crop or letterbox the page on any other paper size.
-            printPdfNative(nonEmpty, customization, jobName)
-            return PrintOutcome.Printed("Opening print dialog…")
-        }
-
-        // No print dialog to ask here, so fall back to a locale-appropriate default (A4 or
-        // Letter) for the plain "share this PDF" path.
-        val pdfDir = File(context.cacheDir, "print_share").apply { mkdirs() }
-        val fileName = if (nonEmpty.size == 1) "ticket_${nonEmpty.first().first.id}" else "tickets_${nonEmpty.size}"
-        val file = File(pdfDir, "${fileName}_${System.currentTimeMillis()}.pdf")
-        PdfPageRenderer.writeMultiToFile(nonEmpty, customization, file)
-
-        // A thermal printer (MeowSpool) can't take a full-page PDF, so Page format always goes
-        // out as a plain PDF share instead of the MeowSpool-only intent used elsewhere.
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            putExtra(Intent.EXTRA_STREAM, uri)
-            type = "application/pdf"
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        return PrintOutcome.ShareReady(intent)
+        // A thermal printer (MeowSpool) can't take a full page PDF, and a plain "share this
+        // file" sheet is a worse experience than Android's own print dialog - which already
+        // offers "Save as PDF" alongside every real printer the OS knows about - so Page format
+        // always goes through the system print dialog regardless of the general Print method
+        // setting above (that setting only governs the bitmap-label formats).
+        printPdfNative(nonEmpty, customization, jobName)
+        return PrintOutcome.Printed("Opening print dialog…")
     }
 
     /**

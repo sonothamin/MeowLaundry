@@ -63,6 +63,7 @@ import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.PDF_HEADER_COLOR_PRESETS
 import com.sonothamin.meowlaundry.data.LabelFont
+import com.sonothamin.meowlaundry.data.PageMargin
 import com.sonothamin.meowlaundry.data.PrintMethod
 import com.sonothamin.meowlaundry.data.PrintServerSettings
 import com.sonothamin.meowlaundry.data.ServiceType
@@ -107,6 +108,7 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     var ticketFormat by remember(labelCustomization.format) { mutableStateOf(labelCustomization.format) }
     var headerColor by remember(labelCustomization.headerColor) { mutableStateOf(labelCustomization.headerColor) }
     var font by remember(labelCustomization.font) { mutableStateOf(labelCustomization.font) }
+    var pageMargin by remember(labelCustomization.pageMargin) { mutableStateOf(labelCustomization.pageMargin) }
     // Recomputed on every edit so the preview always reflects exactly what's about to be saved.
     val previewCustomization = LabelCustomization(
         headerText = headerText,
@@ -115,6 +117,7 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
         format = ticketFormat,
         headerColor = headerColor,
         font = font,
+        pageMargin = pageMargin,
     )
     val previewBitmap = remember(previewCustomization) {
         if (previewCustomization.format == TicketFormat.PAGE) {
@@ -216,16 +219,20 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 }
             }
 
-            Column {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Print darkness", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                    Text(
-                        "${darkness.roundToInt()}%",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+            // Only the MeowSpool network path actually uses print darkness (thermal-printer
+            // contrast); it's meaningless for the system dialog or a real-text PDF page.
+            if (printMethod == PrintMethod.NETWORK) {
+                Column {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Print darkness", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                        Text(
+                            "${darkness.roundToInt()}%",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Slider(value = darkness, onValueChange = { darkness = it }, valueRange = 0f..100f)
                 }
-                Slider(value = darkness, onValueChange = { darkness = it }, valueRange = 0f..100f)
             }
 
             HorizontalDivider()
@@ -242,19 +249,13 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 SegmentedButton(
                     selected = ticketFormat == TicketFormat.RECEIPT,
                     onClick = { ticketFormat = TicketFormat.RECEIPT },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                     label = { Text("Receipt") },
-                )
-                SegmentedButton(
-                    selected = ticketFormat == TicketFormat.RECTANGULAR,
-                    onClick = { ticketFormat = TicketFormat.RECTANGULAR },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                    label = { Text("Rectangular") },
                 )
                 SegmentedButton(
                     selected = ticketFormat == TicketFormat.PAGE,
                     onClick = { ticketFormat = TicketFormat.PAGE },
-                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                     label = { Text("Page (PDF)") },
                 )
             }
@@ -263,7 +264,7 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     TicketFormat.RECEIPT -> "An open continuous strip with dashed tear lines, like a thermal receipt."
                     TicketFormat.RECTANGULAR -> "A bordered, self-contained card - a good fit for a sheet-fed printer via System."
                     TicketFormat.PAGE -> "A real text document on standard paper - selectable text, not a bitmap image. " +
-                        "Prints via the system dialog, or shares as a plain PDF file."
+                        "Always opens Android's own print dialog, which also offers \u201cSave as PDF\u201d."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -276,6 +277,18 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
+                Text("Margins", style = MaterialTheme.typography.labelLarge)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    PageMargin.entries.forEachIndexed { index, margin ->
+                        SegmentedButton(
+                            selected = pageMargin == margin,
+                            onClick = { pageMargin = margin },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = PageMargin.entries.size),
+                            label = { Text(margin.displayName) },
+                        )
+                    }
+                }
 
                 Text("Header color", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {

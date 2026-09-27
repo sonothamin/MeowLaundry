@@ -33,7 +33,6 @@ import java.util.Locale
  */
 object PdfPageRenderer {
 
-    private const val MARGIN = 40f
     private const val BAND_HEIGHT = 60f
     private const val STAT_BOX_HEIGHT = 46f
     private const val ROW_HEIGHT = 26f
@@ -110,9 +109,11 @@ object PdfPageRenderer {
     ): PdfDocument {
         val pageWidth = pageWidthPt
         val pageHeight = pageHeightPt
-        val contentWidth = pageWidth - 2 * MARGIN
-        val firstPageAvailable = pageHeight - MARGIN - BAND_HEIGHT - 24f - STAT_BOX_HEIGHT - 20f - 22f - FOOTER_RESERVE
-        val laterPageAvailable = pageHeight - MARGIN - 40f - FOOTER_RESERVE
+        val marginH = customization.pageMargin.horizontalPt
+        val marginV = customization.pageMargin.verticalPt
+        val contentWidth = pageWidth - 2 * marginH
+        val firstPageAvailable = pageHeight - marginV - BAND_HEIGHT - 24f - STAT_BOX_HEIGHT - 20f - 22f - FOOTER_RESERVE
+        val laterPageAvailable = pageHeight - marginV - 40f - FOOTER_RESERVE
 
         // Pre-paginate every ticket so page numbers ("Page X of Y") are known before drawing.
         data class TicketPlan(val ticket: LaundryTicket, val garments: List<ClothingItem>, val chunkSizes: List<Int>)
@@ -135,6 +136,8 @@ object PdfPageRenderer {
                     pageWidth = pageWidth.toFloat(),
                     pageHeight = pageHeight.toFloat(),
                     contentWidth = contentWidth.toFloat(),
+                    marginH = marginH,
+                    marginV = marginV,
                     ticket = plan.ticket,
                     allGarmentsCount = plan.garments.size,
                     pageGarments = plan.garments.subList(offset, offset + count),
@@ -165,6 +168,8 @@ object PdfPageRenderer {
         pageWidth: Float,
         pageHeight: Float,
         contentWidth: Float,
+        marginH: Float,
+        marginV: Float,
         ticket: LaundryTicket,
         allGarmentsCount: Int,
         pageGarments: List<ClothingItem>,
@@ -186,13 +191,13 @@ object PdfPageRenderer {
             canvas.drawRect(RectF(0f, 0f, pageWidth, BAND_HEIGHT), fillPaint(customization.headerColor))
             canvas.drawText(
                 customization.headerText.ifBlank { "MeowLaundry" },
-                MARGIN,
+                marginH,
                 BAND_HEIGHT / 2f + 8f,
                 p(22f, bold = true, color = Color.WHITE),
             )
             val meta = "Ticket #${ticket.id}  \u00b7  ${dateFormat.format(Date(ticket.sentAt))}"
             val metaPaint = p(10f, color = Color.WHITE, align = Paint.Align.RIGHT)
-            canvas.drawText(meta, pageWidth - MARGIN, BAND_HEIGHT / 2f + 4f, metaPaint)
+            canvas.drawText(meta, pageWidth - marginH, BAND_HEIGHT / 2f + 4f, metaPaint)
 
             y = BAND_HEIGHT + 24f
 
@@ -208,7 +213,7 @@ object PdfPageRenderer {
             boxes.forEachIndexed { index, pair ->
                 val label = pair.first
                 val value = pair.second
-                val left = MARGIN + index * (boxWidth + boxGap)
+                val left = marginH + index * (boxWidth + boxGap)
                 val rect = RectF(left, y, left + boxWidth, y + STAT_BOX_HEIGHT)
                 canvas.drawRoundRect(rect, 8f, 8f, fillPaint(ROW_SHADE))
                 canvas.drawRoundRect(rect, 8f, 8f, linePaint())
@@ -218,19 +223,19 @@ object PdfPageRenderer {
             }
             y += STAT_BOX_HEIGHT + 20f
 
-            canvas.drawText("Garments \u00b7 Check each one on return", MARGIN, y, p(13f, bold = true))
+            canvas.drawText("Garments \u00b7 Check each one on return", marginH, y, p(13f, bold = true))
             y += 10f
-            canvas.drawLine(MARGIN, y, pageWidth - MARGIN, y, linePaint())
+            canvas.drawLine(marginH, y, pageWidth - marginH, y, linePaint())
             y += 16f
         } else {
             canvas.drawText(
                 "${customization.headerText.ifBlank { "MeowLaundry" }} \u2014 Ticket #${ticket.id} (continued)",
-                MARGIN,
-                MARGIN,
+                marginH,
+                marginV,
                 p(12f, bold = true, color = MUTED),
             )
-            y = MARGIN + 20f
-            canvas.drawLine(MARGIN, y, pageWidth - MARGIN, y, linePaint())
+            y = marginV + 20f
+            canvas.drawLine(marginH, y, pageWidth - marginH, y, linePaint())
             y += 16f
         }
 
@@ -239,25 +244,25 @@ object PdfPageRenderer {
             val index = startIndex + rowOffset
             val rowTop = y + rowOffset * ROW_HEIGHT
             if (index % 2 == 1) {
-                canvas.drawRect(RectF(MARGIN, rowTop, pageWidth - MARGIN, rowTop + ROW_HEIGHT), fillPaint(ROW_SHADE))
+                canvas.drawRect(RectF(marginH, rowTop, pageWidth - marginH, rowTop + ROW_HEIGHT), fillPaint(ROW_SHADE))
             }
             val centerY = rowTop + ROW_HEIGHT / 2f
-            canvas.drawCircle(MARGIN + 14f, centerY, circleR, fillPaint(lightTint(customization.headerColor)))
+            canvas.drawCircle(marginH + 14f, centerY, circleR, fillPaint(lightTint(customization.headerColor)))
             canvas.drawText(
                 "${index + 1}",
-                MARGIN + 14f,
+                marginH + 14f,
                 centerY + 4f,
                 p(10f, bold = true, color = customization.headerColor, align = Paint.Align.CENTER),
             )
 
             val namePaint = p(12.5f)
-            canvas.drawText(garment.title, MARGIN + 34f, centerY + 4f, namePaint)
+            canvas.drawText(garment.title, marginH + 34f, centerY + 4f, namePaint)
 
             if (customization.showGarmentType) {
                 val typeLabel = garment.type.name.lowercase().replaceFirstChar { it.uppercase() }
                 val tagPaint = p(9f, color = MUTED, align = Paint.Align.RIGHT)
                 val tagWidth = tagPaint.measureText(typeLabel) + 16f
-                val tagRight = pageWidth - MARGIN - 4f
+                val tagRight = pageWidth - marginH - 4f
                 val tagRect = RectF(tagRight - tagWidth, centerY - 9f, tagRight, centerY + 9f)
                 canvas.drawRoundRect(tagRect, 9f, 9f, fillPaint(ROW_SHADE))
                 canvas.drawText(typeLabel, tagRight - 8f, centerY + 3f, tagPaint)
@@ -265,8 +270,8 @@ object PdfPageRenderer {
         }
 
         // Footer: divider + note (last page of this ticket only) + page number (every page).
-        val footerY = pageHeight - MARGIN
-        canvas.drawLine(MARGIN, footerY - 24f, pageWidth - MARGIN, footerY - 24f, linePaint())
+        val footerY = pageHeight - marginV
+        canvas.drawLine(marginH, footerY - 24f, pageWidth - marginH, footerY - 24f, linePaint())
         if (isLastPageOfTicket) {
             canvas.drawText(
                 customization.footerText.ifBlank { "Please keep this ticket until pickup" },
@@ -278,7 +283,7 @@ object PdfPageRenderer {
         if (totalPages > 1) {
             canvas.drawText(
                 "Page $globalPageNumber of $totalPages",
-                pageWidth - MARGIN,
+                pageWidth - marginH,
                 footerY - 6f,
                 p(9f, color = MUTED, align = Paint.Align.RIGHT),
             )

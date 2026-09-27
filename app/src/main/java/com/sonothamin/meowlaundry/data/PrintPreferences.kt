@@ -54,6 +54,17 @@ fun defaultPageSize(): PageSize {
     return if (java.util.Locale.getDefault().country in letterCountries) PageSize.LETTER else PageSize.A4
 }
 
+/**
+ * Page margin presets, matching the three most-used options in Microsoft Word's own margin
+ * picker (its "Normal" 1in-all-round default isn't offered here - "Moderate" already covers
+ * that middle ground closely enough for a two/three-option picker).
+ */
+enum class PageMargin(val horizontalPt: Float, val verticalPt: Float, val displayName: String) {
+    NARROW(36f, 36f, "Narrow"),
+    MODERATE(54f, 72f, "Moderate"),
+    WIDE(144f, 72f, "Wide"),
+}
+
 /** A small, legible set of print fonts - kept deliberately short rather than exposing every family on-device. */
 enum class LabelFont(val typefaceFamily: String, val displayName: String) {
     SANS("sans-serif", "Sans-serif"),
@@ -86,6 +97,8 @@ data class LabelCustomization(
     val headerColor: Int = DEFAULT_HEADER_COLOR,
     /** Typeface used for every piece of text on the ticket, receipt or page alike. */
     val font: LabelFont = LabelFont.SANS,
+    /** Page margin, [TicketFormat.PAGE] only - ignored by the bitmap formats. */
+    val pageMargin: PageMargin = PageMargin.MODERATE,
 )
 
 /** The launcher icon's purple - the default PDF header band color. */
@@ -118,6 +131,7 @@ class PrintPreferences(private val context: Context) {
         val LABEL_FORMAT = stringPreferencesKey("label_format")
         val LABEL_HEADER_COLOR = intPreferencesKey("label_header_color")
         val LABEL_FONT = stringPreferencesKey("label_font")
+        val LABEL_PAGE_MARGIN = stringPreferencesKey("label_page_margin")
     }
 
     val settings: Flow<PrintServerSettings> = context.dataStore.data.map { prefs ->
@@ -156,6 +170,9 @@ class PrintPreferences(private val context: Context) {
             font = prefs[Keys.LABEL_FONT]
                 ?.let { runCatching { LabelFont.valueOf(it) }.getOrNull() }
                 ?: LabelFont.SANS,
+            pageMargin = prefs[Keys.LABEL_PAGE_MARGIN]
+                ?.let { runCatching { PageMargin.valueOf(it) }.getOrNull() }
+                ?: PageMargin.MODERATE,
         )
     }
 
@@ -167,6 +184,7 @@ class PrintPreferences(private val context: Context) {
             prefs[Keys.LABEL_FORMAT] = customization.format.name
             prefs[Keys.LABEL_HEADER_COLOR] = customization.headerColor
             prefs[Keys.LABEL_FONT] = customization.font.name
+            prefs[Keys.LABEL_PAGE_MARGIN] = customization.pageMargin.name
         }
     }
 }
