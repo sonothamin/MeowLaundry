@@ -150,231 +150,59 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 .padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text(
-                "Point this at the phone running MeowSpool with its print server switched on.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Hint("Point this at the phone running MeowSpool with its print server switched on.")
 
-            // Nudge to install MeowSpool whenever the current choices lean on it. Reacts to the
-            // unsaved selections above, and disappears on its own once the app is installed.
-            val meowSpoolInstalled by rememberMeowSpoolInstalled()
-            val needsMeowSpoolApp = printMethod == PrintMethod.SHARE_INTENT
-            val wantsMeowSpool = needsMeowSpoolApp ||
-                printMethod == PrintMethod.NETWORK ||
-                ticketFormat == TicketFormat.RECEIPT
-            if (!meowSpoolInstalled && wantsMeowSpool) {
-                MeowSpoolInstallBanner(
-                    message = when {
-                        needsMeowSpoolApp ->
-                            "MeowSpool isn't installed on this phone. \"App intent\" printing hands the label to it, so it won't work until you install it."
-                        printMethod == PrintMethod.NETWORK ->
-                            "MeowSpool isn't installed on this phone. That's fine if the print server runs on another phone; otherwise install it here."
-                        else ->
-                            "The receipt style is made for thermal printers, which MeowSpool drives. It isn't installed on this phone yet."
-                    },
-                )
-            }
+            MeowSpoolNudge(printMethod, ticketFormat)
 
-            Text("Default print method", style = MaterialTheme.typography.labelLarge)
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = printMethod == PrintMethod.NETWORK,
-                    onClick = { printMethod = PrintMethod.NETWORK },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                    label = { Text("IP") },
-                )
-                SegmentedButton(
-                    selected = printMethod == PrintMethod.SHARE_INTENT,
-                    onClick = { printMethod = PrintMethod.SHARE_INTENT },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                    label = { Text("App intent") },
-                )
-                SegmentedButton(
-                    selected = printMethod == PrintMethod.NATIVE,
-                    onClick = { printMethod = PrintMethod.NATIVE },
-                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                    label = { Text("System") },
-                )
-            }
-            Text(
-                when (printMethod) {
-                    PrintMethod.NETWORK -> "Talks to the MeowSpool HTTP API directly at the host/port below."
-                    PrintMethod.SHARE_INTENT -> "Hands the label to the MeowSpool app via a share intent - no host/port needed."
-                    PrintMethod.NATIVE -> "Opens Android's own print dialog - any printer the OS knows about, " +
-                        "or \"Save as PDF\". Not MeowSpool-specific."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            FieldLabel("Default print method")
+            ChoiceRow(PrintMethod.entries, printMethod, { printMethod = it }, PrintMethod::label)
+            Hint(printMethod.hint)
 
-            // Host, port and token only matter when talking to MeowSpool over the network.
+            // Host, port, token and darkness only matter when talking to MeowSpool over the network
+            // (darkness is thermal-printer contrast; meaningless for the system dialog or a PDF page).
             if (printMethod == PrintMethod.NETWORK) {
-                OutlinedTextField(
-                    value = host,
-                    onValueChange = { host = it },
-                    label = { Text("Host / IP address") },
-                    placeholder = { Text("192.168.1.20") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = port,
-                    onValueChange = { port = it.filter(Char::isDigit) },
-                    label = { Text("Port") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
+                TextInput(host, { host = it }, "Host / IP address", placeholder = "192.168.1.20")
+                TextInput(port, { port = it.filter(Char::isDigit) }, "Port")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = useToken, onCheckedChange = { useToken = it })
                     Text("Require access token", modifier = Modifier.padding(start = Spacing.sm))
                 }
-                if (useToken) {
-                    OutlinedTextField(
-                        value = token,
-                        onValueChange = { token = it },
-                        label = { Text("Access token") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-
-            // Only the MeowSpool network path actually uses print darkness (thermal-printer
-            // contrast); it's meaningless for the system dialog or a real-text PDF page.
-            if (printMethod == PrintMethod.NETWORK) {
-                Column {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Print darkness", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                        Text(
-                            "${darkness.roundToInt()}%",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    Slider(value = darkness, onValueChange = { darkness = it }, valueRange = 0f..100f)
-                }
+                if (useToken) TextInput(token, { token = it }, "Access token")
+                DarknessSlider(darkness) { darkness = it }
             }
 
             HorizontalDivider()
 
             Text("Ticket layout", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "What prints on the ticket itself. The preview below updates as you type.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Hint("What prints on the ticket itself. The preview below updates as you type.")
 
-            Text("Ticket format", style = MaterialTheme.typography.labelLarge)
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = ticketFormat == TicketFormat.RECEIPT,
-                    onClick = { ticketFormat = TicketFormat.RECEIPT },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    label = { Text("Receipt") },
-                )
-                SegmentedButton(
-                    selected = ticketFormat == TicketFormat.PAGE,
-                    onClick = { ticketFormat = TicketFormat.PAGE },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    label = { Text("Page (PDF)") },
-                )
-            }
-            Text(
-                when (ticketFormat) {
-                    TicketFormat.RECEIPT -> "An open continuous strip with dashed tear lines, like a thermal receipt."
-                    TicketFormat.PAGE -> "A real text document on standard paper - selectable text, not a bitmap image. " +
-                        "Always opens Android's own print dialog, which also offers \u201cSave as PDF\u201d."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            FieldLabel("Ticket format")
+            ChoiceRow(TicketFormat.entries, ticketFormat, { ticketFormat = it }, TicketFormat::label)
+            Hint(ticketFormat.hint)
 
             if (ticketFormat == TicketFormat.PAGE) {
-                Text(
+                Hint(
                     "Paper size follows whatever you pick in the print dialog itself (or \u201cSave as PDF\u201d), " +
-                        "so the page is never cropped to a size chosen here ahead of time.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        "so the page is never cropped to a size chosen here ahead of time."
                 )
-
-                Text("Margins", style = MaterialTheme.typography.labelLarge)
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    PageMargin.entries.forEachIndexed { index, margin ->
-                        SegmentedButton(
-                            selected = pageMargin == margin,
-                            onClick = { pageMargin = margin },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = PageMargin.entries.size),
-                            label = { Text(margin.displayName) },
-                        )
-                    }
-                }
-
-                Text("Header color", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    PDF_HEADER_COLOR_PRESETS.forEach { argb ->
-                        val swatchColor = Color(argb)
-                        val isSelected = headerColor == argb
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(swatchColor)
-                                .border(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
-                                    shape = CircleShape,
-                                )
-                                .clickable { headerColor = argb },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                }
+                FieldLabel("Margins")
+                ChoiceRow(PageMargin.entries, pageMargin, { pageMargin = it }) { it.displayName }
+                FieldLabel("Header color")
+                ColorSwatches(PDF_HEADER_COLOR_PRESETS, headerColor) { headerColor = it }
             }
 
-            OutlinedTextField(
-                value = headerText,
-                onValueChange = { headerText = it },
-                label = { Text("Header") },
-                placeholder = { Text("MeowLaundry") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = footerText,
-                onValueChange = { footerText = it },
-                label = { Text("Footer") },
-                placeholder = { Text("Please keep this ticket until pickup") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            TextInput(headerText, { headerText = it }, "Header", placeholder = "MeowLaundry")
+            TextInput(footerText, { footerText = it }, "Footer", placeholder = "Please keep this ticket until pickup")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = showGarmentType, onCheckedChange = { showGarmentType = it })
                 Text("Show each garment's category (Top, Bottom...)", modifier = Modifier.padding(start = Spacing.sm))
             }
 
-            Text("Font", style = MaterialTheme.typography.labelLarge)
-            FontRow(selected = font, onSelect = { font = it })
+            FieldLabel("Font")
+            ChoiceRow(LabelFont.entries, font, { font = it }) { it.displayName }
 
-            Text("Preview", style = MaterialTheme.typography.labelLarge)
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = androidx.compose.ui.graphics.Color.White,
-                shadowElevation = 4.dp,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Image(
-                    bitmap = previewBitmap.asImageBitmap(),
-                    contentDescription = "Preview of the printed ticket with your current header, footer and layout choices",
-                    contentScale = ContentScale.FillWidth,
-                    modifier = Modifier.fillMaxWidth().widthIn(max = 260.dp).padding(Spacing.sm),
-                )
-            }
+            FieldLabel("Preview")
+            TicketPreview(previewBitmap)
 
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Button(
@@ -394,30 +222,157 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 ) { Text("Save") }
                 if (printMethod == PrintMethod.NETWORK) {
                     OutlinedButton(onClick = viewModel::testConnection, enabled = !uiState.isTestingConnection) {
-                        Text(if (uiState.isTestingConnection) "Testing…" else "Test connection")
+                        Text(if (uiState.isTestingConnection) "Testing\u2026" else "Test connection")
                     }
                 }
             }
             if (printMethod == PrintMethod.NETWORK) {
-                uiState.connectionStatus?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall)
+                uiState.connectionStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+    }
+}
+
+// --- Building blocks --------------------------------------------------------
+
+private fun PrintMethod.label() = when (this) {
+    PrintMethod.NETWORK -> "IP"
+    PrintMethod.SHARE_INTENT -> "App intent"
+    PrintMethod.NATIVE -> "System"
+}
+
+private val PrintMethod.hint: String
+    get() = when (this) {
+        PrintMethod.NETWORK -> "Talks to the MeowSpool HTTP API directly at the host/port below."
+        PrintMethod.SHARE_INTENT -> "Hands the label to the MeowSpool app via a share intent - no host/port needed."
+        PrintMethod.NATIVE -> "Opens Android's own print dialog - any printer the OS knows about, " +
+            "or \"Save as PDF\". Not MeowSpool-specific."
+    }
+
+private fun TicketFormat.label() = when (this) {
+    TicketFormat.RECEIPT -> "Receipt"
+    TicketFormat.PAGE -> "Page (PDF)"
+}
+
+private val TicketFormat.hint: String
+    get() = when (this) {
+        TicketFormat.RECEIPT -> "An open continuous strip with dashed tear lines, like a thermal receipt."
+        TicketFormat.PAGE -> "A real text document on standard paper - selectable text, not a bitmap image. " +
+            "Always opens Android's own print dialog, which also offers \u201cSave as PDF\u201d."
+    }
+
+/** Small grey explanatory text under a control. */
+@Composable
+private fun Hint(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun FieldLabel(text: String) {
+    Text(text, style = MaterialTheme.typography.labelLarge)
+}
+
+@Composable
+private fun TextInput(value: String, onChange: (String) -> Unit, label: String, placeholder: String? = null) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        placeholder = if (placeholder != null) ({ Text(placeholder) }) else null,
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Segmented picker over any small set of options (print method, format, margins, font). */
+@Composable
+private fun <T> ChoiceRow(options: List<T>, selected: T, onSelect: (T) -> Unit, label: (T) -> String) {
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = selected == option,
+                onClick = { onSelect(option) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                label = { Text(label(option)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DarknessSlider(value: Float, onChange: (Float) -> Unit) {
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Print darkness", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            Text(
+                "${value.roundToInt()}%",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Slider(value = value, onValueChange = onChange, valueRange = 0f..100f)
+    }
+}
+
+@Composable
+private fun ColorSwatches(colors: List<Int>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        colors.forEach { argb ->
+            val isSelected = selected == argb
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(argb))
+                    .border(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
+                        shape = CircleShape,
+                    )
+                    .clickable { onSelect(argb) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isSelected) {
+                    Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
         }
     }
 }
 
-/** Segmented picker for the small, curated set of print fonts. */
 @Composable
-private fun FontRow(selected: LabelFont, onSelect: (LabelFont) -> Unit) {
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        LabelFont.entries.forEachIndexed { index, font ->
-            SegmentedButton(
-                selected = selected == font,
-                onClick = { onSelect(font) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = LabelFont.entries.size),
-                label = { Text(font.displayName) },
-            )
-        }
+private fun TicketPreview(bitmap: android.graphics.Bitmap) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = Color.White,
+        shadowElevation = 4.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "Preview of the printed ticket with your current header, footer and layout choices",
+            contentScale = ContentScale.FillWidth,
+            modifier = Modifier.fillMaxWidth().widthIn(max = 260.dp).padding(Spacing.sm),
+        )
     }
+}
+
+/**
+ * Suggests installing MeowSpool when the current (unsaved) choices lean on it. Disappears on its
+ * own once the app is installed.
+ */
+@Composable
+private fun MeowSpoolNudge(method: PrintMethod, format: TicketFormat) {
+    val installed by rememberMeowSpoolInstalled()
+    if (installed) return
+    val message = when {
+        method == PrintMethod.SHARE_INTENT ->
+            "MeowSpool isn't installed on this phone. \"App intent\" printing hands the label to it, so it won't work until you install it."
+        method == PrintMethod.NETWORK ->
+            "MeowSpool isn't installed on this phone. That's fine if the print server runs on another phone; otherwise install it here."
+        format == TicketFormat.RECEIPT ->
+            "The receipt style is made for thermal printers, which MeowSpool drives. It isn't installed on this phone yet."
+        else -> return
+    }
+    MeowSpoolInstallBanner(message)
 }
