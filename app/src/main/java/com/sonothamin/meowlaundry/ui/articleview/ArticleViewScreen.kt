@@ -1,6 +1,17 @@
 package com.sonothamin.meowlaundry.ui.articleview
 
 import android.text.format.DateUtils
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -108,8 +119,8 @@ fun ArticleViewScreen(
     onEdit: (Long) -> Unit,
     onSendToLaundry: (Long) -> Unit,
     onOpenTicket: (Long) -> Unit,
-    /** Swiped to a neighboring garment; the caller re-points navigation at [Long] without growing the back stack. */
-    onSwipeToItem: (Long) -> Unit = {},
+    /** Swiped to a neighboring garment ([Boolean] = true when moving forward/next); the caller re-points navigation without growing the back stack. */
+    onSwipeToItem: (Long, Boolean) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navState by viewModel.navState.collectAsStateWithLifecycle()
@@ -117,7 +128,6 @@ fun ArticleViewScreen(
     var showArchiveDialog by remember { mutableStateOf(false) }
     var detailsExpanded by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var selectedPhotoPath by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(state.deleted) {
         if (state.deleted) onBack()
@@ -182,43 +192,70 @@ fun ArticleViewScreen(
     ) { padding ->
         if (item == null) return@Scaffold
 
-        val heroPath = selectedPhotoPath ?: item.imagePath
         val dateFormat = remember { SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()) }
         val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
 
-        // Swipe left/right anywhere on the content to page to the neighboring garment (same order
-        // Closet/Archive shows it in). Read through rememberUpdatedState so the drag callbacks -
-        // set up once via pointerInput(Unit) - always see the latest neighbor ids without restarting
-        // mid-gesture.
+        // Photo carousel: one page per photo (or the legacy single image / a placeholder).
+        val pagePaths = remember(state.photos, item.imagePath) {
+            if (state.photos.isNotEmpty()) state.photos.map { it.path } else listOf(item.imagePath)
+        }
+        val pagerState = rememberPagerState(pageCount = { pagePaths.size })
+        val scope = rememberCoroutineScope()
+
+        // Gallery-style article paging: the whole page follows the finger, then either flies off
+        // (and the neighbor slides in from the other side) or springs back. The photo carousel
+        // consumes horizontal drags inside its own bounds first, so swiping photos never pages the
+        // article - this gesture only sees drags that start elsewhere on the screen.
         val latestNavState = rememberUpdatedState(navState)
         val latestOnSwipe = rememberUpdatedState(onSwipeToItem)
-        var dragAccumPx by remember { mutableStateOf(0f) }
+        val dragOffset = remember { Animatable(0f) }
         val swipeThresholdPx = with(LocalDensity.current) { 96.dp.toPx() }
+        var pageWidthPx by remember { mutableStateOf(1f) }
 
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .onSizeChanged { pageWidthPx = it.width.toFloat().coerceAtLeast(1f) }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
-                        onDragStart = { dragAccumPx = 0f },
                         onHorizontalDrag = { change, dragAmount ->
-                            dragAccumPx += dragAmount
                             change.consume()
+                            val nav = latestNavState.value
+                            val target = dragOffset.value + dragAmount
+                            // Rubber-band when there's nothing further in that direction.
+                            val hasNeighbor = if (target > 0) nav.previousId != null else nav.nextId != null
+                            val applied = if (hasNeighbor) dragAmount else dragAmount * 0.3f
+                            scope.launch { dragOffset.snapTo(dragOffset.value + applied) }
                         },
                         onDragEnd = {
                             val nav = latestNavState.value
-                            when {
-                                dragAccumPx > swipeThresholdPx -> nav.previousId?.let(latestOnSwipe.value)
-                                dragAccumPx < -swipeThresholdPx -> nav.nextId?.let(latestOnSwipe.value)
+                            val offset = dragOffset.value
+                            val goPrevious = offset > swipeThresholdPx && nav.previousId != null
+                            val goNext = offset < -swipeThresholdPx && nav.nextId != null
+                            scope.launch {
+                                if (goPrevious || goNext) {
+                                    dragOffset.animateTo(if (goPrevious) pageWidthPx else -pageWidthPx, tween(160))
+                                    val id = if (goPrevious) nav.previousId!! else nav.nextId!!
+                                    latestOnSwipe.value(id, goNext)
+                                } else {
+                                    dragOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                                }
                             }
-                            dragAccumPx = 0f
                         },
-                        onDragCancel = { dragAccumPx = 0f },
+                        onDragCancel = { scope.launch { dragOffset.animateTo(0f) } },
                     )
+                }
+                .graphicsLayer {
+                    translationX = dragOffset.value
+                    val progress = (kotlin.math.abs(dragOffset.value) / pageWidthPx).coerceIn(0f, 1f)
+                    alpha = 1f - 0.5f * progress
+                    val scale = 1f - 0.06f * progress
+                    scaleX = scale
+                    scaleY = scale
                 },
         ) {
-            // --- Hero: square crop (no letterboxing) with the Material extra-large rounded corners ---
+            // --- Hero carousel: square crop with the Material extra-large rounded corners ---
             item {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
@@ -233,26 +270,52 @@ fun ArticleViewScreen(
                             .background(MaterialTheme.colorScheme.secondaryContainer),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (heroPath != null) {
-                            AsyncImage(
-                                model = heroPath,
-                                contentDescription = item.title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Checkroom,
-                                contentDescription = null,
-                                modifier = Modifier.size(72.dp),
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
+                        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                            val path = pagePaths[page]
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                if (path != null) {
+                                    AsyncImage(
+                                        model = path,
+                                        contentDescription = item.title,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Checkroom,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(72.dp),
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    )
+                                }
+                            }
+                        }
+                        if (pagePaths.size > 1) {
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = Spacing.sm)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.35f))
+                                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                repeat(pagePaths.size) { index ->
+                                    val active = pagerState.currentPage == index
+                                    Box(
+                                        modifier = Modifier
+                                            .size(if (active) 8.dp else 6.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = if (active) 1f else 0.6f)),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // Thumbnail strip to flip through the rest of the gallery.
+            // Thumbnail strip, kept in sync with the carousel; tapping one jumps to that photo.
             if (state.photos.size > 1) {
                 item {
                     LazyRow(
@@ -260,8 +323,8 @@ fun ArticleViewScreen(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        items(state.photos, key = { it.id }) { photo ->
-                            val isSelected = heroPath == photo.path
+                        itemsIndexed(state.photos, key = { _, photo -> photo.id }) { index, photo ->
+                            val isSelected = pagerState.currentPage == index
                             AsyncImage(
                                 model = photo.path,
                                 contentDescription = null,
@@ -274,7 +337,7 @@ fun ArticleViewScreen(
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
                                         shape = MaterialTheme.shapes.medium,
                                     )
-                                    .clickable { selectedPhotoPath = photo.path },
+                                    .clickable { scope.launch { pagerState.animateScrollToPage(index) } },
                             )
                         }
                     }

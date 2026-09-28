@@ -3,6 +3,8 @@ package com.sonothamin.meowlaundry.ui.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -151,6 +153,10 @@ fun MeowLaundryNavHost(
             }
         },
     ) {
+        // Which way the last article swipe went (true = next), so the incoming article can slide in
+        // from the matching side. Article -> article is the only transition that uses it.
+        var articleSwipeForward by remember { mutableStateOf(true) }
+
         NavHost(
             navController = navController,
             startDestination = startDestination,
@@ -217,6 +223,23 @@ fun MeowLaundryNavHost(
 
             composable(
                 route = Destination.ArticleView.route,
+                enterTransition = {
+                    if (initialState.destination.route == Destination.ArticleView.route) {
+                        val forward = articleSwipeForward
+                        slideInHorizontally(tween(260)) { full -> if (forward) full else -full } +
+                            fadeIn(tween(260))
+                    } else {
+                        fadeIn(tween(FADE_IN_MS))
+                    }
+                },
+                // The outgoing article already flew off-screen under the finger; nothing more to animate.
+                exitTransition = {
+                    if (targetState.destination.route == Destination.ArticleView.route) {
+                        ExitTransition.None
+                    } else {
+                        fadeOut(tween(FADE_OUT_MS))
+                    }
+                },
                 arguments = listOf(navArgument("itemId") { type = NavType.LongType }),
             ) { backStackEntry ->
                 val itemId = backStackEntry.arguments?.getLong("itemId") ?: return@composable
@@ -232,7 +255,8 @@ fun MeowLaundryNavHost(
                     // Swap in the neighboring garment without growing the back stack, so Back still
                     // returns to wherever this screen was first opened from, not through every item
                     // swiped past along the way.
-                    onSwipeToItem = { id ->
+                    onSwipeToItem = { id, forward ->
+                        articleSwipeForward = forward
                         navController.navigate(Destination.ArticleView.route(id)) {
                             popUpTo(Destination.ArticleView.route) { inclusive = true }
                             launchSingleTop = true
