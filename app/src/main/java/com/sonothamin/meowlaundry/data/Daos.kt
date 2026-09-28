@@ -244,6 +244,10 @@ interface LaundryDao {
     @Query("DELETE FROM laundry_tickets WHERE id IN (:ids)")
     suspend fun deleteTicketsByIds(ids: List<Long>)
 
+    /** Removes tickets with no garments at all. Nothing can be stranded by this: there is nothing on them. */
+    @Query("DELETE FROM laundry_tickets WHERE id NOT IN (SELECT DISTINCT ticketId FROM laundry_ticket_items)")
+    suspend fun deleteEmptyTickets(): Int
+
     @Query("SELECT * FROM laundry_tickets WHERE id IN (:ids)")
     suspend fun getTicketsByIds(ids: List<Long>): List<LaundryTicket>
 

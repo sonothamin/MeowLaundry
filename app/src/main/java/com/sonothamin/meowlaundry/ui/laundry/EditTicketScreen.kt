@@ -217,6 +217,7 @@ private fun ItemsSection(
                             added.forEach { garment ->
                                 AddedGarmentRow(
                                     garment = garment,
+                                    isOnlyGarment = added.size == 1,
                                     onRemove = { onRemove(garment.item.id) },
                                     onQuantity = { onQuantity(garment.item.id, it) },
                                 )
@@ -267,7 +268,12 @@ private fun EmptyRow(text: String) {
 }
 
 @Composable
-private fun AddedGarmentRow(garment: TicketGarment, onRemove: () -> Unit, onQuantity: (Int) -> Unit) {
+private fun AddedGarmentRow(
+    garment: TicketGarment,
+    isOnlyGarment: Boolean,
+    onRemove: () -> Unit,
+    onQuantity: (Int) -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -282,6 +288,7 @@ private fun AddedGarmentRow(garment: TicketGarment, onRemove: () -> Unit, onQuan
             Text(
                 when {
                     garment.quantity > 1 && garment.accountedFor > 0 -> "${garment.accountedFor} of ${garment.quantity} back or lost"
+                    garment.removable && isOnlyGarment -> "${garmentTypeLabel(garment.item)} \u00b7 a ticket needs at least one garment"
                     garment.removable -> garmentTypeLabel(garment.item)
                     garment.lost -> "Lost"
                     else -> "Returned"
@@ -299,7 +306,8 @@ private fun AddedGarmentRow(garment: TicketGarment, onRemove: () -> Unit, onQuan
                 max = garment.maxQuantity,
             )
         }
-        if (garment.removable) {
+        // The last garment stays: an empty ticket could never be closed or deleted.
+        if (garment.removable && !isOnlyGarment) {
             IconButton(onClick = onRemove) {
                 Icon(Icons.Default.Close, contentDescription = "Remove ${garment.item.title}")
             }

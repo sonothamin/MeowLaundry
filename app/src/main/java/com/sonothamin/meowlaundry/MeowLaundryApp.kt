@@ -57,6 +57,7 @@ class MeowLaundryApp : Application() {
         Reminders.createChannel(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             repository.migrateLegacyLost()
+            repository.purgeEmptyTickets()
             Reminders.sync(this@MeowLaundryApp)
         }
     }

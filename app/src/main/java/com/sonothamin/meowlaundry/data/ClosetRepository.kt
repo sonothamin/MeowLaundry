@@ -276,14 +276,26 @@ class ClosetRepository(
     /**
      * Takes an article off a ticket, e.g. it was added by mistake. Units already returned or lost
      * on this ticket stay recorded, so only a row with nothing accounted for is removed outright.
+     *
+     * A ticket's last garment can't be removed: that would leave an empty ticket which can
+     * never be resolved, closed or deleted. Returns whether the garment was actually removed.
      */
-    suspend fun removeGarmentFromTicket(ticketId: Long, clothingItemId: Long) {
-        val row = laundryDao.getItemsForTicket(ticketId).firstOrNull { it.clothingItemId == clothingItemId } ?: return
-        if (row.returnedQuantity + row.lostQuantity > 0) return
+    suspend fun removeGarmentFromTicket(ticketId: Long, clothingItemId: Long): Boolean {
+        val rows = laundryDao.getItemsForTicket(ticketId)
+        val row = rows.firstOrNull { it.clothingItemId == clothingItemId } ?: return false
+        if (row.returnedQuantity + row.lostQuantity > 0) return false
+        if (rows.size <= 1) return false
         laundryDao.deleteTicketItem(ticketId, clothingItemId)
         recomputeCounts(clothingItemId)
         refreshTicketStatus(ticketId)
+        return true
     }
+
+    /**
+     * Deletes tickets that have no garments (left behind by older versions, which let the last
+     * garment be removed in Edit ticket). Returns how many were removed. Safe to run repeatedly.
+     */
+    suspend fun purgeEmptyTickets(): Int = laundryDao.deleteEmptyTickets()
 
     /**
      * Records the laundry's answer for a ticket. [resolutions] maps an article to how many of its
