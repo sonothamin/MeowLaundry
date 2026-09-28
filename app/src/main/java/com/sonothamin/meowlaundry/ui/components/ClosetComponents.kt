@@ -1,5 +1,14 @@
 package com.sonothamin.meowlaundry.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -26,17 +35,24 @@ import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sonothamin.meowlaundry.data.ArchiveReason
@@ -143,20 +159,43 @@ fun clothingSubtitle(item: ClothingItem): String =
         partlyOutLabel(item),
     ).joinToString(" \u00b7 ")
 
-/** Small pill overlaid on a photo showing how many units the article stands for. */
+/**
+ * Small badge overlaid on a photo showing how many units the article stands for. Leans into MD3
+ * Expressive: a lopsided "flag" shape (rounded on three corners, sharp on one) instead of a plain
+ * pill, solid high-contrast tertiary rather than a soft container, and a spring pop whenever the
+ * count changes so it doesn't just silently swap digits.
+ */
 @Composable
 fun QuantityBadge(text: String, modifier: Modifier = Modifier) {
+    val shape = remember {
+        RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp)
+    }
+    val pop = remember { Animatable(1f) }
+    LaunchedEffect(text) {
+        pop.snapTo(0.65f)
+        pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
+    }
     Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        modifier = modifier.scale(pop.value),
+        shape = shape,
+        color = MaterialTheme.colorScheme.tertiary,
+        contentColor = MaterialTheme.colorScheme.onTertiary,
+        shadowElevation = 3.dp,
     ) {
-        Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+        )
     }
 }
 
-/** Compact - / value / + control for choosing a number of units between [min] and [max]. */
+/**
+ * Pill-shaped -/value/+ control for choosing a number of units between [min] and [max]. The two
+ * buttons are deliberately mismatched (a quiet tonal "fewer", a bold filled "more") rather than a
+ * matched pair of plain icon buttons, and the number animates in and out on a small vertical
+ * spring whenever it changes instead of just replacing itself.
+ */
 @Composable
 fun QuantityStepper(
     value: Int,
@@ -166,18 +205,60 @@ fun QuantityStepper(
     max: Int = Int.MAX_VALUE,
     enabled: Boolean = true,
 ) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { onChange((value - 1).coerceAtLeast(min)) }, enabled = enabled && value > min, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.Remove, contentDescription = "Fewer")
-        }
-        Text(
-            value.toString(),
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.width(32.dp),
-        )
-        IconButton(onClick = { onChange((value + 1).coerceAtMost(max)) }, enabled = enabled && value < max, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.Add, contentDescription = "More")
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            FilledTonalIconButton(
+                onClick = { onChange((value - 1).coerceAtLeast(min)) },
+                enabled = enabled && value > min,
+                modifier = Modifier.size(30.dp),
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ),
+            ) {
+                Icon(Icons.Default.Remove, contentDescription = "Fewer", modifier = Modifier.size(16.dp))
+            }
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = {
+                    val goingUp = targetState > initialState
+                    val enter = slideInVertically(
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                    ) { height -> if (goingUp) height else -height } + fadeIn()
+                    val exit = slideOutVertically(
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                    ) { height -> if (goingUp) -height else height } + fadeOut()
+                    enter.togetherWith(exit)
+                },
+                label = "quantity-stepper-value",
+            ) { animatedValue ->
+                Text(
+                    animatedValue.toString(),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(28.dp),
+                )
+            }
+            FilledIconButton(
+                onClick = { onChange((value + 1).coerceAtMost(max)) },
+                enabled = enabled && value < max,
+                modifier = Modifier.size(30.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "More", modifier = Modifier.size(16.dp))
+            }
         }
     }
 }
