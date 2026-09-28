@@ -26,6 +26,9 @@ enum class TicketFilter { ACTIVE, CLOSED, ALL }
 
 /** One-shot events the screen must act on (launching a share/print intent, showing a message). */
 sealed class LaundryEvent {
+    /** Launch a print hand-off intent straight at its target app (no chooser). */
+    data class LaunchPrint(val intent: android.content.Intent) : LaundryEvent()
+    data object MeowSpoolMissing : LaundryEvent()
     data class LaunchIntent(val intent: android.content.Intent, val chooserTitle: String) : LaundryEvent()
     data class Message(val text: String) : LaundryEvent()
 }
@@ -211,7 +214,8 @@ class LaundryViewModel(
             when (val outcome = printDispatcher.dispatchTickets(ticketsWithGarments)) {
                 is PrintOutcome.Printed -> _events.emit(LaundryEvent.Message(outcome.message))
                 is PrintOutcome.Failed -> _events.emit(LaundryEvent.Message(outcome.message))
-                is PrintOutcome.ShareReady -> _events.emit(LaundryEvent.LaunchIntent(outcome.intent, "Print"))
+                is PrintOutcome.ShareReady -> _events.emit(LaundryEvent.LaunchPrint(outcome.intent))
+                PrintOutcome.MeowSpoolMissing -> _events.emit(LaundryEvent.MeowSpoolMissing)
             }
         }
     }

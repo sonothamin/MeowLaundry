@@ -130,10 +130,21 @@ fun LaundryScreen(
         }
     }
 
+    var showMeowSpoolMissing by remember { mutableStateOf(false) }
+    if (showMeowSpoolMissing) {
+        com.sonothamin.meowlaundry.ui.components.MeowSpoolMissingDialog(onDismiss = { showMeowSpoolMissing = false })
+    }
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 is LaundryEvent.Message -> snackbarHostState.showSnackbar(event.text)
+                is LaundryEvent.LaunchPrint -> try {
+                    context.startActivity(event.intent)
+                } catch (_: android.content.ActivityNotFoundException) {
+                    showMeowSpoolMissing = true
+                }
+                LaundryEvent.MeowSpoolMissing -> showMeowSpoolMissing = true
                 is LaundryEvent.LaunchIntent -> runCatching {
                     context.startActivity(android.content.Intent.createChooser(event.intent, event.chooserTitle))
                 }.onFailure {

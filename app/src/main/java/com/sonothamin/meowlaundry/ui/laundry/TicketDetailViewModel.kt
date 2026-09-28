@@ -24,6 +24,9 @@ import kotlinx.coroutines.launch
 /** One-shot events the screen must act on (launching a share/print intent, showing a message). */
 sealed class TicketDetailEvent {
     data class LaunchIntent(val intent: android.content.Intent, val chooserTitle: String) : TicketDetailEvent()
+    /** Launch a print hand-off intent straight at its target app (no chooser). */
+    data class LaunchPrint(val intent: android.content.Intent) : TicketDetailEvent()
+    data object MeowSpoolMissing : TicketDetailEvent()
     data class Message(val text: String) : TicketDetailEvent()
 
     /** The ticket was closed; the screen has nothing left to do and should leave. */
@@ -238,9 +241,8 @@ class TicketDetailViewModel(
             when (val outcome = printDispatcher.dispatchTicket(ticket, garments)) {
                 is PrintOutcome.Printed -> _events.emit(TicketDetailEvent.Message(outcome.message))
                 is PrintOutcome.Failed -> _events.emit(TicketDetailEvent.Message(outcome.message))
-                is PrintOutcome.ShareReady -> _events.emit(
-                    TicketDetailEvent.LaunchIntent(outcome.intent, "Print"),
-                )
+                is PrintOutcome.ShareReady -> _events.emit(TicketDetailEvent.LaunchPrint(outcome.intent))
+                PrintOutcome.MeowSpoolMissing -> _events.emit(TicketDetailEvent.MeowSpoolMissing)
             }
             isPrinting.value = false
         }

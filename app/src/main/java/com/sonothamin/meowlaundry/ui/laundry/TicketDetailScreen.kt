@@ -159,10 +159,21 @@ fun TicketDetailScreen(
     var showDuePicker by remember { mutableStateOf(false) }
     val askNotificationPermission = rememberNotificationPermissionRequester()
 
+    var showMeowSpoolMissing by remember { mutableStateOf(false) }
+    if (showMeowSpoolMissing) {
+        com.sonothamin.meowlaundry.ui.components.MeowSpoolMissingDialog(onDismiss = { showMeowSpoolMissing = false })
+    }
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 is TicketDetailEvent.Message -> snackbarHostState.showSnackbar(event.text)
+                is TicketDetailEvent.LaunchPrint -> try {
+                    context.startActivity(event.intent)
+                } catch (_: android.content.ActivityNotFoundException) {
+                    showMeowSpoolMissing = true
+                }
+                TicketDetailEvent.MeowSpoolMissing -> showMeowSpoolMissing = true
                 TicketDetailEvent.Closed -> onClosed()
                 is TicketDetailEvent.LaunchIntent -> runCatching {
                     context.startActivity(android.content.Intent.createChooser(event.intent, event.chooserTitle))

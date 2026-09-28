@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -41,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import kotlinx.coroutines.launch
+import com.sonothamin.meowlaundry.print.MeowSpoolInstall
+import com.sonothamin.meowlaundry.ui.components.rememberMeowSpoolInstalled
 import com.sonothamin.meowlaundry.ui.components.rememberNotificationPermissionRequester
 
 private data class OnboardingPage(
@@ -49,6 +52,8 @@ private data class OnboardingPage(
     val body: String,
     /** True only for the final "ask for notification permission" step. */
     val isNotificationStep: Boolean = false,
+    /** True for the MeowSpool step, which suggests installing the app if it's missing. */
+    val isPrintStep: Boolean = false,
 )
 
 private val pages = listOf(
@@ -69,6 +74,7 @@ private val pages = listOf(
         title = "Print a ticket with MeowSpool",
         body = "Connect a MeowSpool printer over Wi-Fi, or just share the label straight to " +
             "the MeowSpool app - your call, in Settings.",
+        isPrintStep = true,
     ),
     OnboardingPage(
         icon = Icons.Default.NotificationsActive,
@@ -173,6 +179,36 @@ private fun OnboardingPageContent(page: OnboardingPage) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        if (page.isPrintStep) {
+            Spacer(modifier = Modifier.height(24.dp))
+            MeowSpoolOnboardingStatus()
+        }
+    }
+}
+
+/** Under the MeowSpool page: a nudge to install it, or a quiet confirmation if it's already here. */
+@Composable
+private fun MeowSpoolOnboardingStatus() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val installed by rememberMeowSpoolInstalled()
+    if (installed) {
+        Text(
+            "MeowSpool is installed - you're all set.",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    } else {
+        FilledTonalButton(onClick = { MeowSpoolInstall.openInstallPage(context) }) {
+            Text("Get MeowSpool")
+        }
+        Text(
+            "Not installed yet. You can also skip this and use your phone's own print dialog.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp),
         )
     }
 }

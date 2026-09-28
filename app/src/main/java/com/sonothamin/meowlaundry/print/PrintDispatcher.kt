@@ -35,6 +35,9 @@ sealed class PrintOutcome {
     /** Caller must launch this share intent (targeting MeowSpool) to finish the print. */
     data class ShareReady(val intent: Intent) : PrintOutcome()
 
+    /** The chosen method needs the MeowSpool app, which isn't installed - the caller should offer to install it. */
+    data object MeowSpoolMissing : PrintOutcome()
+
     data class Failed(val message: String) : PrintOutcome()
 }
 
@@ -158,7 +161,12 @@ class PrintDispatcher(
                     else -> PrintOutcome.Failed("Print failed: $lastError")
                 }
             }
-            PrintMethod.SHARE_INTENT -> PrintOutcome.ShareReady(buildShareIntent(bitmaps))
+            PrintMethod.SHARE_INTENT -> {
+                // Check first, so we can offer to install MeowSpool instead of letting Android
+                // answer with its generic "no app found to handle this action".
+                if (!isMeowSpoolInstalled()) PrintOutcome.MeowSpoolMissing
+                else PrintOutcome.ShareReady(buildShareIntent(bitmaps))
+            }
             PrintMethod.NATIVE -> {
                 printNative(bitmaps)
                 PrintOutcome.Printed("Opening print dialog…")
@@ -190,10 +198,7 @@ class PrintDispatcher(
     }
 
     /** True if the MeowSpool app is installed and can receive the share intent. */
-    fun isMeowSpoolInstalled(): Boolean = runCatching {
-        context.packageManager.getPackageInfo(MEOWSPOOL_PACKAGE, 0)
-        true
-    }.getOrDefault(false)
+    fun isMeowSpoolInstalled(): Boolean = MeowSpoolInstall.isInstalled(context)
 
     /**
      * Hands the label(s) to Android's own print framework instead of MeowSpool: opens the

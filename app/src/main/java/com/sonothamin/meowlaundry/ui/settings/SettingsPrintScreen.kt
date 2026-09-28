@@ -70,6 +70,8 @@ import com.sonothamin.meowlaundry.data.ServiceType
 import com.sonothamin.meowlaundry.data.TicketFormat
 import com.sonothamin.meowlaundry.print.LabelRenderer
 import com.sonothamin.meowlaundry.print.PdfPageRenderer
+import com.sonothamin.meowlaundry.ui.components.MeowSpoolInstallBanner
+import com.sonothamin.meowlaundry.ui.components.rememberMeowSpoolInstalled
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import kotlin.math.roundToInt
 
@@ -153,6 +155,26 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            // Nudge to install MeowSpool whenever the current choices lean on it. Reacts to the
+            // unsaved selections above, and disappears on its own once the app is installed.
+            val meowSpoolInstalled by rememberMeowSpoolInstalled()
+            val needsMeowSpoolApp = printMethod == PrintMethod.SHARE_INTENT
+            val wantsMeowSpool = needsMeowSpoolApp ||
+                printMethod == PrintMethod.NETWORK ||
+                ticketFormat == TicketFormat.RECEIPT
+            if (!meowSpoolInstalled && wantsMeowSpool) {
+                MeowSpoolInstallBanner(
+                    message = when {
+                        needsMeowSpoolApp ->
+                            "MeowSpool isn't installed on this phone. \"App intent\" printing hands the label to it, so it won't work until you install it."
+                        printMethod == PrintMethod.NETWORK ->
+                            "MeowSpool isn't installed on this phone. That's fine if the print server runs on another phone; otherwise install it here."
+                        else ->
+                            "The receipt style is made for thermal printers, which MeowSpool drives. It isn't installed on this phone yet."
+                    },
+                )
+            }
 
             Text("Default print method", style = MaterialTheme.typography.labelLarge)
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
