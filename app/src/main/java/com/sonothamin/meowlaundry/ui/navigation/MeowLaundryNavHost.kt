@@ -367,7 +367,18 @@ fun MeowLaundryNavHost(
                 val vm: EditTicketViewModel = viewModel(
                     factory = LambdaViewModelFactory { EditTicketViewModel(app.repository, ticketId) },
                 )
-                EditTicketScreen(viewModel = vm, onDone = { navController.popBackStack() })
+                EditTicketScreen(
+                    viewModel = vm,
+                    onDone = { navController.popBackStack() },
+                    // The ticket page behind this screen would show a ticket that no longer exists,
+                    // so leave both and confirm on whatever page is underneath.
+                    onDeleted = {
+                        if (!navController.popBackStack(Destination.TicketDetail.route, inclusive = true)) {
+                            navController.popBackStack()
+                        }
+                        navController.currentBackStackEntry?.savedStateHandle?.set(KEY_FLASH_MESSAGE, "Ticket #$ticketId deleted")
+                    },
+                )
             }
 
             composable(Destination.Archive.route) {

@@ -424,6 +424,12 @@ class ClosetRepository(
         settleAfterDelete(rows)
     }
 
+    /** Deletes a ticket by id, open or closed (see [deleteTicket] for what happens to its garments). */
+    suspend fun deleteTicketById(ticketId: Long) {
+        val ticket = laundryDao.getTicket(ticketId) ?: return
+        deleteTicket(ticket)
+    }
+
     suspend fun deleteTicketsByIds(ids: List<Long>) {
         if (ids.isEmpty()) return
         val rows = ids.flatMap { laundryDao.getItemsForTicket(it) }

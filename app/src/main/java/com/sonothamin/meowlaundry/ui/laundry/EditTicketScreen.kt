@@ -17,10 +17,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -34,6 +37,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,12 +70,46 @@ import com.sonothamin.meowlaundry.ui.theme.Spacing
 fun EditTicketScreen(
     viewModel: EditTicketViewModel,
     onDone: () -> Unit,
+    onDeleted: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var confirmDelete by remember { mutableStateOf(false) }
     val providerSuggestions by viewModel.providerSuggestions.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.saved) {
         if (state.saved) onDone()
+    }
+    LaunchedEffect(state.deleted) {
+        if (state.deleted) onDeleted()
+    }
+
+    if (confirmDelete) {
+        val stillOut = state.garments.sumOf { it.quantity - it.accountedFor }
+        val lostUnits = state.garments.sumOf { it.lostQuantity }
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            icon = { Icon(Icons.Default.Delete, contentDescription = null) },
+            title = { Text("Delete this ticket?") },
+            text = {
+                Text(
+                    buildString {
+                        append("The ticket and its record are removed for good.")
+                        if (stillOut > 0) append(" Garments still out go back to your closet.")
+                        if (lostUnits > 0) append(" Units marked lost are taken off your closet count for good.")
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDelete = false
+                        viewModel.deleteTicket()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+        )
     }
 
     Scaffold(
@@ -84,6 +122,9 @@ fun EditTicketScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { confirmDelete = true }, enabled = state.isValid) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete ticket")
+                    }
                     FilledIconButton(onClick = viewModel::save, enabled = state.isValid) {
                         Icon(Icons.Default.Check, contentDescription = "Save changes")
                     }
@@ -288,7 +329,7 @@ private fun AddedGarmentRow(
             Text(
                 when {
                     garment.quantity > 1 && garment.accountedFor > 0 -> "${garment.accountedFor} of ${garment.quantity} back or lost"
-                    garment.removable && isOnlyGarment -> "${garmentTypeLabel(garment.item)} \u00b7 a ticket needs at least one garment"
+                    garment.removable && isOnlyGarment -> "${garmentTypeLabel(garment.item)} \u00b7 a ticket needs at least one garment, delete it instead"
                     garment.removable -> garmentTypeLabel(garment.item)
                     garment.lost -> "Lost"
                     else -> "Returned"

@@ -24,6 +24,7 @@ data class TicketGarment(
     /** Units of this article on the ticket, and how many of them are already accounted for. */
     val quantity: Int = 1,
     val accountedFor: Int = 0,
+    val lostQuantity: Int = 0,
 ) {
     /** Only a row with nothing returned or lost yet can be taken off the ticket outright. */
     val removable: Boolean get() = accountedFor == 0
@@ -42,6 +43,7 @@ data class EditTicketUiState(
     val garments: List<TicketGarment> = emptyList(),
     val availableToAdd: List<ClothingItem> = emptyList(),
     val saved: Boolean = false,
+    val deleted: Boolean = false,
 ) {
     // A ticket always has a service type, so there's nothing to actually invalidate here -
     // this exists so the screen has a single place to extend validation later.
@@ -98,6 +100,7 @@ class EditTicketViewModel(
                         lost = ticketItem?.lost ?: false,
                         quantity = ticketItem?.quantity ?: 1,
                         accountedFor = (ticketItem?.returnedQuantity ?: 0) + (ticketItem?.lostQuantity ?: 0),
+                        lostQuantity = ticketItem?.lostQuantity ?: 0,
                     )
                 }
                 ticketGarments to inCloset
@@ -129,6 +132,17 @@ class EditTicketViewModel(
     fun removeGarment(clothingItemId: Long) {
         viewModelScope.launch {
             repository.removeGarmentFromTicket(ticketId, clothingItemId)
+        }
+    }
+
+    /**
+     * Deletes the whole ticket, however many garments are on it. Garments still out go back to
+     * the closet; the screen leaves once [EditTicketUiState.deleted] flips.
+     */
+    fun deleteTicket() {
+        viewModelScope.launch {
+            repository.deleteTicketById(ticketId)
+            _state.update { it.copy(deleted = true) }
         }
     }
 
