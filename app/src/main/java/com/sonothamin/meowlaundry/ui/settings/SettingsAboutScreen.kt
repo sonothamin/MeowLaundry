@@ -100,25 +100,14 @@ fun SettingsAboutScreen(onBack: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
-                    // painterResource() can't load an <adaptive-icon> mipmap directly (it isn't a
-                    // plain VectorDrawable/BitmapDrawable, and trying crashes at runtime) - so the
-                    // background and foreground layers are drawn separately here instead, exactly
-                    // like the launcher itself composites them, just clipped to a circle.
-                    Box(
-                        modifier = Modifier.size(96.dp).clip(CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_launcher_background),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                        Image(
-                            painter = painterResource(R.drawable.ic_launcher_foreground),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+                    // ic_app_logo is the icon on its own rounded-square background. (An <adaptive-icon>
+                    // mipmap can't go through painterResource() - it crashes - so the About screen
+                    // uses this plain vector instead of the launcher layers.)
+                    Image(
+                        painter = painterResource(R.drawable.ic_app_logo),
+                        contentDescription = null,
+                        modifier = Modifier.size(96.dp),
+                    )
                     Text("MeowLaundry", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                     if (versionLabel.isNotBlank()) {
                         Text(

@@ -1,5 +1,5 @@
 <resources>
     <!-- Deeper shade of the light-mode purple so the launcher icon background reads
          correctly against a dark system launcher / dark wallpaper. -->
-    <color name="ic_launcher_background">#3A2E63</color>
+    <color name="ic_launcher_background">#F5F1EC</color>
 </resources>
