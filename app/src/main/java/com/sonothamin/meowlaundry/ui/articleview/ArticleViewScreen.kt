@@ -209,7 +209,8 @@ fun ArticleViewScreen(
         val latestNavState = rememberUpdatedState(navState)
         val latestOnSwipe = rememberUpdatedState(onSwipeToItem)
         val dragOffset = remember { Animatable(0f) }
-        val swipeThresholdPx = with(LocalDensity.current) { 96.dp.toPx() }
+        // Short swipe: the page moves 1.6x the finger, and ~64dp of page travel (~40dp of finger) commits.
+        val swipeThresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
         var pageWidthPx by remember { mutableStateOf(1f) }
 
         LazyColumn(
@@ -222,10 +223,11 @@ fun ArticleViewScreen(
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
                             val nav = latestNavState.value
-                            val target = dragOffset.value + dragAmount
+                            val gained = dragAmount * 1.6f
+                            val target = dragOffset.value + gained
                             // Rubber-band when there's nothing further in that direction.
                             val hasNeighbor = if (target > 0) nav.previousId != null else nav.nextId != null
-                            val applied = if (hasNeighbor) dragAmount else dragAmount * 0.3f
+                            val applied = if (hasNeighbor) gained else gained * 0.2f
                             scope.launch { dragOffset.snapTo(dragOffset.value + applied) }
                         },
                         onDragEnd = {
