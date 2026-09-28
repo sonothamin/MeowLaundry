@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
@@ -56,6 +57,7 @@ fun SettingsScreen(
     onOpenPrint: () -> Unit,
     onOpenReminders: () -> Unit,
     onOpenAppearance: () -> Unit,
+    onOpenCloset: () -> Unit,
     onOpenCurrency: () -> Unit,
     onOpenBackup: () -> Unit,
     onOpenAbout: () -> Unit,
@@ -67,6 +69,7 @@ fun SettingsScreen(
     val defaultCurrency by viewModel.defaultCurrency.collectAsStateWithLifecycle()
     val storedFont by viewModel.uiFontName.collectAsStateWithLifecycle()
     val remindersEnabled by viewModel.remindersEnabled.collectAsStateWithLifecycle()
+    val showWinterWear by viewModel.showWinterWear.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val currentFont = remember(storedFont) { UiFont.resolve(context, storedFont) }
 
@@ -92,6 +95,12 @@ fun SettingsScreen(
             title = "Appearance",
             subtitle = "${themeModeLabel(themeMode)} · ${currentFont.label}",
             onClick = onOpenAppearance,
+        ),
+        SettingsEntry(
+            icon = Icons.Default.Checkroom,
+            title = "Closet",
+            subtitle = if (showWinterWear) "Winter wear shown" else "Winter wear hidden",
+            onClick = onOpenCloset,
         ),
         SettingsEntry(
             icon = Icons.Default.Payments,

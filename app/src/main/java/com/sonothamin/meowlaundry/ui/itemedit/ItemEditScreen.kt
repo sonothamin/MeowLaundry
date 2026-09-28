@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -43,6 +44,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -266,6 +269,13 @@ fun ItemEditScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
+
+            FilterChip(
+                selected = state.isWinterWear,
+                onClick = { viewModel.onWinterWearChange(!state.isWinterWear) },
+                label = { Text("Winter wear") },
+                leadingIcon = { Icon(Icons.Default.AcUnit, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) },
+            )
 
             OutlinedTextField(
                 value = state.notes,

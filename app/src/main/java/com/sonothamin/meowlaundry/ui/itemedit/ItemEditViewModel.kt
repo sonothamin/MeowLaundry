@@ -48,6 +48,7 @@ data class ItemEditUiState(
     val priceText: String = "",
     val notes: String = "",
     val status: ClothingStatus = ClothingStatus.IN_CLOSET,
+    val isWinterWear: Boolean = false,
     val isLoading: Boolean = false,
     val saved: Boolean = false,
     val deleted: Boolean = false,
@@ -113,6 +114,7 @@ class ItemEditViewModel(
                             priceText = item.price?.let { p -> formatPrice(p) } ?: "",
                             notes = item.notes.orEmpty(),
                             status = item.status,
+                            isWinterWear = item.isWinterWear,
                         )
                         // A title that differs from what the fields would generate was written by
                         // hand (or predates these fields): keep it instead of overwriting it.
@@ -181,6 +183,10 @@ class ItemEditViewModel(
 
     fun onNotesChange(value: String) {
         _state.update { it.copy(notes = value) }
+    }
+
+    fun onWinterWearChange(value: Boolean) {
+        _state.update { it.copy(isWinterWear = value) }
     }
 
     /** Adds one or more photos picked from the gallery. Any number is allowed; the first ever added is primary. */
@@ -252,6 +258,7 @@ class ItemEditViewModel(
                     imagePath = current.primaryImagePath,
                     price = current.priceText.toDoubleOrNull(),
                     status = current.status,
+                    isWinterWear = current.isWinterWear,
                     notes = current.notes.trim().ifBlank { null },
                     updatedAt = System.currentTimeMillis(),
                 )
@@ -285,6 +292,7 @@ class ItemEditViewModel(
                     imagePath = current.primaryImagePath,
                     price = current.priceText.toDoubleOrNull(),
                     status = current.status,
+                    isWinterWear = current.isWinterWear,
                     notes = current.notes.trim().ifBlank { null },
                     updatedAt = System.currentTimeMillis(),
                 )

@@ -34,6 +34,7 @@ class AppPreferences(private val context: Context) {
         val REMINDER_HOUR = intPreferencesKey("reminder_hour")
         val REMINDER_MINUTE = intPreferencesKey("reminder_minute")
         val LAST_REMINDER_DAY = longPreferencesKey("last_reminder_day")
+        val SHOW_WINTER_WEAR = booleanPreferencesKey("show_winter_wear")
     }
 
     /** Currency pre-selected for new articles. Falls back to the device's regional currency. */
@@ -105,5 +106,12 @@ class AppPreferences(private val context: Context) {
 
     suspend fun setOnboardingComplete(complete: Boolean) {
         context.appDataStore.edit { it[Keys.ONBOARDING_COMPLETE] = complete }
+    }
+
+    /** Whether winter-wear-tagged garments show up in the everyday closet view. On by default. */
+    val showWinterWear: Flow<Boolean> = context.appDataStore.data.map { it[Keys.SHOW_WINTER_WEAR] ?: true }
+
+    suspend fun setShowWinterWear(show: Boolean) {
+        context.appDataStore.edit { it[Keys.SHOW_WINTER_WEAR] = show }
     }
 }

@@ -59,6 +59,8 @@ data class ClothingItem(
     val color: String? = null,
     /** ISO 4217 code that [price] is expressed in, e.g. "USD". */
     val currency: String = "USD",
+    /** Tagged as a seasonal/winter garment - can be hidden from the everyday closet view. */
+    val isWinterWear: Boolean = false,
 )
 
 /**
@@ -187,6 +189,8 @@ data class BackupClothingItem(
     val garmentType: String? = null,
     val color: String? = null,
     val currency: String = "USD",
+    // Added in DB v4; defaults keep older backups importable.
+    val isWinterWear: Boolean = false,
 )
 
 @Serializable

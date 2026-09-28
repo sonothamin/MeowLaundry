@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Inventory2
@@ -103,6 +104,25 @@ fun StatusChip(status: ClothingStatus, modifier: Modifier = Modifier) {
     }
 }
 
+/** Small snowflake badge marking a garment tagged as winter wear. */
+@Composable
+fun WinterBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.secondaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.AcUnit,
+            contentDescription = "Winter wear",
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ClothingCard(
@@ -147,6 +167,13 @@ fun ClothingCard(
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize().padding(Spacing.xl),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (item.isWinterWear) {
+                    WinterBadge(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(Spacing.xs),
                     )
                 }
                 if (selected) {
@@ -237,6 +264,7 @@ fun ClothingListRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (item.isWinterWear) WinterBadge()
             StatusChip(status = item.status)
             if (selected) {
                 Icon(

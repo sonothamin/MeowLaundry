@@ -64,6 +64,13 @@ class SettingsViewModel(
         viewModelScope.launch { appPreferences.setDefaultCurrency(code) }
     }
 
+    val showWinterWear: StateFlow<Boolean> = appPreferences.showWinterWear
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setShowWinterWear(show: Boolean) {
+        viewModelScope.launch { appPreferences.setShowWinterWear(show) }
+    }
+
     val remindersEnabled: StateFlow<Boolean> = appPreferences.remindersEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 

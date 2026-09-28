@@ -47,6 +47,9 @@ class ClosetViewModel(
     val viewMode: StateFlow<ClosetViewMode> = appPreferences.closetViewMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ClosetViewMode.GRID)
 
+    val showWinterWear: StateFlow<Boolean> = appPreferences.showWinterWear
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
     private val allItemsForFilter: StateFlow<List<ClothingItem>> = _filter
         .flatMapLatest { status ->
             when (status) {
@@ -63,9 +66,15 @@ class ClosetViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val items: StateFlow<List<ClothingItem>> = combine(allItemsForFilter, _searchQuery, _sortOption) { list, query, sort ->
-        val filtered = if (query.isBlank()) list
-        else list.filter { item ->
+    val items: StateFlow<List<ClothingItem>> = combine(
+        allItemsForFilter,
+        _searchQuery,
+        _sortOption,
+        showWinterWear,
+    ) { list, query, sort, showWinter ->
+        val winterFiltered = if (showWinter) list else list.filter { !it.isWinterWear }
+        val filtered = if (query.isBlank()) winterFiltered
+        else winterFiltered.filter { item ->
             listOf(item.title, item.brand, item.color, item.garmentType, item.type.name)
                 .any { it?.contains(query, ignoreCase = true) == true }
         }

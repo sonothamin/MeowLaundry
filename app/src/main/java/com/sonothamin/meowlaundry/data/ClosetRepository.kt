@@ -332,6 +332,7 @@ class ClosetRepository(
                     garmentType = it.garmentType,
                     color = it.color,
                     currency = it.currency,
+                    isWinterWear = it.isWinterWear,
                     photos = photosByItem[it.id].orEmpty().map { photo ->
                         BackupPhoto(path = photo.path, isPrimary = photo.isPrimary, sortOrder = photo.sortOrder)
                     },
@@ -387,6 +388,7 @@ class ClosetRepository(
                     garmentType = it.garmentType,
                     color = it.color,
                     currency = it.currency,
+                    isWinterWear = it.isWinterWear,
                 )
             }
         )

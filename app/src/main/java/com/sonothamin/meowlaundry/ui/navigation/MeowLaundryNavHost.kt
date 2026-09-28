@@ -62,6 +62,7 @@ import com.sonothamin.meowlaundry.ui.onboarding.OnboardingScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsAboutScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsAppearanceScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsBackupScreen
+import com.sonothamin.meowlaundry.ui.settings.SettingsClosetScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsCurrencyScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsPrintScreen
 import com.sonothamin.meowlaundry.ui.settings.SettingsRemindersScreen
@@ -384,6 +385,7 @@ fun MeowLaundryNavHost(
                     onOpenPrint = { navController.navigate(Destination.SettingsPrint.route) },
                     onOpenReminders = { navController.navigate(Destination.SettingsReminders.route) },
                     onOpenAppearance = { navController.navigate(Destination.SettingsAppearance.route) },
+                    onOpenCloset = { navController.navigate(Destination.SettingsCloset.route) },
                     onOpenCurrency = { navController.navigate(Destination.SettingsCurrency.route) },
                     onOpenBackup = { navController.navigate(Destination.SettingsBackup.route) },
                     onOpenAbout = { navController.navigate(Destination.SettingsAbout.route) },
@@ -416,6 +418,15 @@ fun MeowLaundryNavHost(
                     },
                 )
                 SettingsAppearanceScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+
+            composable(Destination.SettingsCloset.route) {
+                val vm: SettingsViewModel = viewModel(
+                    factory = LambdaViewModelFactory {
+                        SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
+                    },
+                )
+                SettingsClosetScreen(viewModel = vm, onBack = { navController.popBackStack() })
             }
 
             composable(Destination.SettingsCurrency.route) {
