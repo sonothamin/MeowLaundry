@@ -66,6 +66,8 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     debugImplementation(libs.androidx.ui.tooling)
 
+    testImplementation("junit:junit:4.13.2")
+
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.androidx.room.runtime)

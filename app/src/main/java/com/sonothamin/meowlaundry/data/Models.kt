@@ -188,13 +188,6 @@ data class LaundryTicketItem(
     val isResolved: Boolean get() = pendingQuantity == 0
 }
 
-/** [LaundryTicket] together with the garments in it, for list/detail screens. */
-data class TicketWithItems(
-    val ticket: LaundryTicket,
-    val items: List<LaundryTicketItem>,
-    val garments: List<ClothingItem>,
-)
-
 /** Plain, serializable snapshot of the whole database, used by export/import. */
 @Serializable
 data class BackupPayload(

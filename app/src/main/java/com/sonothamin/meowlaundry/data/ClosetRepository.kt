@@ -4,9 +4,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 
-/** How many units of an article on one ticket are back and how many are lost; the rest are still out. */
-data class Resolution(val returned: Int, val lost: Int)
-
 /**
  * Single entry point the ViewModels talk to. Keeps Room, photo files and the two related
  * tables (closet + laundry tickets) consistent with each other.
@@ -161,8 +158,6 @@ class ClosetRepository(
 
     fun observeAllTickets(): Flow<List<LaundryTicket>> = laundryDao.observeAllTickets()
 
-    fun observeActiveTickets(): Flow<List<LaundryTicket>> = laundryDao.observeActiveTickets()
-
     fun observeTicket(id: Long): Flow<LaundryTicket?> = laundryDao.observeTicket(id)
 
     fun observeItemsForTicket(ticketId: Long): Flow<List<LaundryTicketItem>> =
@@ -200,9 +195,6 @@ class ClosetRepository(
 
     suspend fun getOpenTicketsWithDueDate(): List<LaundryTicket> = laundryDao.getOpenTicketsWithDueDate()
 
-    suspend fun getGarmentsForIds(ids: List<Long>): List<ClothingItem> =
-        ids.mapNotNull { clothingDao.getById(it) }
-
     /**
      * Sends articles to the laundry: creates the ticket with one row per article and marks the
      * units out. Each entry's quantity is clamped to what is actually in the closet.
@@ -211,21 +203,12 @@ class ClosetRepository(
         val items = clothingDao.getByIds(entries.map { it.clothingItemId }).associateBy { it.id }
         val clamped = entries.mapNotNull { e ->
             val item = items[e.clothingItemId] ?: return@mapNotNull null
-            val q = e.quantity.coerceIn(1, item.inClosetQuantity.coerceAtLeast(1))
-            TicketEntry(e.clothingItemId, q)
+            TicketEntry(e.clothingItemId, unitsToSend(e.quantity, item.inClosetQuantity))
         }
         val ticketId = laundryDao.createTicketWithItems(ticket, clamped)
         clamped.map { it.clothingItemId }.distinct().forEach { recomputeCounts(it) }
         return ticketId
     }
-
-    /**
-     * Convenience for single-unit callers. Named distinctly rather than overloaded: a suspend
-     * fun's `Continuation` parameter means `List<TicketEntry>` and `List<Long>` erase to the
-     * same JVM signature, which the compiler rejects as a platform declaration clash.
-     */
-    suspend fun sendSingleUnitsToLaundry(ticket: LaundryTicket, clothingItemIds: List<Long>): Long =
-        sendToLaundry(ticket, clothingItemIds.map { TicketEntry(it, 1) })
 
     /**
      * Adds more articles to a ticket that's already been sent, e.g. fixing a mistake in Edit ticket.
@@ -239,9 +222,9 @@ class ClosetRepository(
         val toUpdate = mutableListOf<LaundryTicketItem>()
         entries.forEach { e ->
             val item = items[e.clothingItemId] ?: return@forEach
-            val q = e.quantity.coerceIn(1, item.inClosetQuantity.coerceAtLeast(1))
+            val q = unitsToSend(e.quantity, item.inClosetQuantity)
             val row = existing[e.clothingItemId]
-            if (row != null) toUpdate += withFlags(row.copy(quantity = row.quantity + q))
+            if (row != null) toUpdate += row.copy(quantity = row.quantity + q).synced()
             else toInsert += LaundryTicketItem(ticketId = ticketId, clothingItemId = e.clothingItemId, quantity = q)
         }
         if (toInsert.isNotEmpty()) laundryDao.insertTicketItems(toInsert)
@@ -249,13 +232,6 @@ class ClosetRepository(
         entries.map { it.clothingItemId }.distinct().forEach { recomputeCounts(it) }
         refreshTicketStatus(ticketId)
     }
-
-    /**
-     * Convenience for single-unit callers. Named distinctly rather than overloaded, for the same
-     * platform-declaration-clash reason as [sendSingleUnitsToLaundry] above.
-     */
-    suspend fun addSingleUnitsToTicket(ticketId: Long, clothingItemIds: List<Long>) =
-        addGarmentsToTicket(ticketId, clothingItemIds.map { TicketEntry(it, 1) })
 
     /**
      * Changes how many units of an article are on a ticket. Never below what has already been
@@ -268,7 +244,7 @@ class ClosetRepository(
         val ceiling = row.quantity + item.inClosetQuantity
         val q = quantity.coerceIn(floor, ceiling.coerceAtLeast(floor))
         if (q == row.quantity) return
-        laundryDao.updateTicketItem(withFlags(row.copy(quantity = q)))
+        laundryDao.updateTicketItem(row.copy(quantity = q).synced())
         recomputeCounts(clothingItemId)
         refreshTicketStatus(ticketId)
     }
@@ -306,62 +282,22 @@ class ClosetRepository(
     suspend fun resolveTicket(ticketId: Long, resolutions: Map<Long, Resolution>) {
         val now = System.currentTimeMillis()
         val rows = laundryDao.getItemsForTicket(ticketId)
-        val updated = rows.map { row ->
-            val r = resolutions[row.clothingItemId] ?: return@map row
-            val returned = r.returned.coerceIn(0, row.quantity)
-            val lost = r.lost.coerceIn(0, row.quantity - returned)
-            val wasBack = row.returnedQuantity
-            withFlags(
-                row.copy(
-                    returnedQuantity = returned,
-                    lostQuantity = lost,
-                    returnedAt = if (returned > 0) (if (wasBack == returned) row.returnedAt ?: now else now) else null,
-                )
-            )
-        }
+        val updated = rows.map { row -> resolutions[row.clothingItemId]?.let { row.resolvedTo(it, now) } ?: row }
         laundryDao.updateTicketItems(updated)
         resolutions.keys.forEach { recomputeCounts(it, now, "Lost at the laundry (ticket #$ticketId)") }
         refreshTicketStatus(ticketId, now)
-    }
-
-    /** Backwards-compatible single-unit form used where quantities don't matter. */
-    suspend fun resolveTicket(
-        ticketId: Long,
-        returnedItemIds: Set<Long>,
-        lostItemIds: Set<Long>,
-        resetItemIds: Set<Long> = emptySet(),
-    ) {
-        val rows = laundryDao.getItemsForTicket(ticketId).associateBy { it.clothingItemId }
-        val map = mutableMapOf<Long, Resolution>()
-        returnedItemIds.forEach { id -> rows[id]?.let { map[id] = Resolution(it.quantity, 0) } }
-        lostItemIds.forEach { id -> rows[id]?.let { map[id] = Resolution(0, it.quantity) } }
-        resetItemIds.forEach { id -> if (rows.containsKey(id)) map[id] = Resolution(0, 0) }
-        resolveTicket(ticketId, map)
     }
 
     /** Recomputes a ticket's status from its rows (all accounted for -> RECEIVED, some -> PARTIALLY_RECEIVED). */
     private suspend fun refreshTicketStatus(ticketId: Long, now: Long = System.currentTimeMillis()) {
         val ticket = laundryDao.getTicket(ticketId) ?: return
         if (ticket.status == TicketStatus.CLOSED) return
-        val rows = laundryDao.getItemsForTicket(ticketId)
-        val newStatus = when {
-            rows.isNotEmpty() && rows.all { it.isResolved } -> TicketStatus.RECEIVED
-            rows.any { it.returnedQuantity + it.lostQuantity > 0 } -> TicketStatus.PARTIALLY_RECEIVED
-            else -> TicketStatus.SENT
-        }
+        val newStatus = ticketStatusFor(laundryDao.getItemsForTicket(ticketId))
         laundryDao.updateTicket(
             ticket.copy(status = newStatus, receivedAt = if (newStatus == TicketStatus.RECEIVED) now else null)
         )
     }
 
-    /** Keeps the legacy returned/lost flags in step with the quantities: true only once a row is fully accounted for. */
-    private fun withFlags(row: LaundryTicketItem): LaundryTicketItem {
-        val resolved = row.isResolved
-        return row.copy(
-            returned = resolved && row.returnedQuantity > 0,
-            lost = resolved && row.lostQuantity > 0,
-        )
-    }
 
     /**
      * Recomputes an article's cached out/lost counts from its ticket rows - the rows are the
@@ -409,31 +345,17 @@ class ClosetRepository(
     suspend fun reopenTicket(ticketId: Long) {
         val ticket = laundryDao.getTicket(ticketId) ?: return
         if (ticket.status != TicketStatus.CLOSED) return
-        val items = laundryDao.getItemsForTicket(ticketId)
-        val status = when {
-            items.all { it.isResolved } -> TicketStatus.RECEIVED
-            items.any { it.returnedQuantity + it.lostQuantity > 0 } -> TicketStatus.PARTIALLY_RECEIVED
-            else -> TicketStatus.SENT
-        }
-        laundryDao.updateTicket(ticket.copy(status = status))
+        laundryDao.updateTicket(ticket.copy(status = ticketStatusFor(laundryDao.getItemsForTicket(ticketId))))
     }
 
-    suspend fun deleteTicket(ticket: LaundryTicket) {
-        val rows = laundryDao.getItemsForTicket(ticket.id)
-        laundryDao.deleteTicket(ticket)
-        settleAfterDelete(rows)
-    }
-
-    /** Deletes a ticket by id, open or closed (see [deleteTicket] for what happens to its garments). */
+    /**
+     * Deletes a ticket, open or closed. Garments still out simply come back to the closet (the
+     * rows were the only thing keeping them "at the laundry"); units it lost stay lost.
+     */
     suspend fun deleteTicketById(ticketId: Long) {
         val ticket = laundryDao.getTicket(ticketId) ?: return
-        deleteTicket(ticket)
-    }
-
-    suspend fun deleteTicketsByIds(ids: List<Long>) {
-        if (ids.isEmpty()) return
-        val rows = ids.flatMap { laundryDao.getItemsForTicket(it) }
-        laundryDao.deleteTicketsByIds(ids)
+        val rows = laundryDao.getItemsForTicket(ticketId)
+        laundryDao.deleteTicket(ticket)
         settleAfterDelete(rows)
     }
 
@@ -544,8 +466,7 @@ class ClosetRepository(
     /** Replaces everything currently in the database with the contents of [payload]. */
     suspend fun importAll(payload: BackupPayload) {
         clothingDao.deleteAll() // cascades to clothing_item_photos rows
-        laundryDao.deleteAllTicketItems()
-        laundryDao.deleteAllTickets()
+        clearAllTickets()
 
         clothingDao.upsertAll(
             payload.clothingItems.map {
@@ -605,17 +526,15 @@ class ClosetRepository(
                 val q = it.quantity.coerceAtLeast(1)
                 val returnedQ = (it.returnedQuantity ?: if (it.returned) q else 0).coerceIn(0, q)
                 val lostQ = (it.lostQuantity ?: if (it.lost) q else 0).coerceIn(0, q - returnedQ)
-                withFlags(
-                    LaundryTicketItem(
-                        id = it.id,
-                        ticketId = it.ticketId,
-                        clothingItemId = it.clothingItemId,
-                        returnedAt = it.returnedAt,
-                        quantity = q,
-                        returnedQuantity = returnedQ,
-                        lostQuantity = lostQ,
-                    )
-                )
+                LaundryTicketItem(
+                    id = it.id,
+                    ticketId = it.ticketId,
+                    clothingItemId = it.clothingItemId,
+                    returnedAt = it.returnedAt,
+                    quantity = q,
+                    returnedQuantity = returnedQ,
+                    lostQuantity = lostQ,
+                ).synced()
             }
         )
         // The article counts are caches of the ticket rows, so rebuild them for everything imported.

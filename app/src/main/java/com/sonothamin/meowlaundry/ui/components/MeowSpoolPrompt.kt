@@ -1,5 +1,8 @@
 package com.sonothamin.meowlaundry.ui.components
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,8 +20,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -89,4 +94,36 @@ fun MeowSpoolMissingDialog(onDismiss: () -> Unit) {
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Not now") } },
     )
+}
+
+/**
+ * Everything a screen needs to hand a print job to MeowSpool: [launch] an intent aimed at it, or
+ * [showMeowSpoolMissing] when the app is known to be absent, then call [Dialog] once in the
+ * screen. If launching fails because the app vanished, the same install prompt appears.
+ */
+class PrintHandoff internal constructor(private val context: Context) {
+    private var missing by mutableStateOf(false)
+
+    fun launch(intent: Intent) {
+        try {
+            context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            missing = true
+        }
+    }
+
+    fun showMeowSpoolMissing() {
+        missing = true
+    }
+
+    @Composable
+    fun Dialog() {
+        if (missing) MeowSpoolMissingDialog(onDismiss = { missing = false })
+    }
+}
+
+@Composable
+fun rememberPrintHandoff(): PrintHandoff {
+    val context = LocalContext.current
+    return remember(context) { PrintHandoff(context) }
 }

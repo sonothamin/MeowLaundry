@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
 
 /** One-shot events the screen must act on (launching a share/print intent, showing a message). */
 sealed class TicketDetailEvent {
-    data class LaunchIntent(val intent: android.content.Intent, val chooserTitle: String) : TicketDetailEvent()
     /** Launch a print hand-off intent straight at its target app (no chooser). */
     data class LaunchPrint(val intent: android.content.Intent) : TicketDetailEvent()
     data object MeowSpoolMissing : TicketDetailEvent()

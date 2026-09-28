@@ -26,12 +26,6 @@ interface ClothingDao {
     @Query("SELECT * FROM clothing_items WHERE id = :id")
     fun observeById(id: Long): Flow<ClothingItem?>
 
-    @Query("SELECT COUNT(*) FROM clothing_items")
-    fun observeCount(): Flow<Int>
-
-    @Query("SELECT COUNT(*) FROM clothing_items WHERE status = :status")
-    fun observeCountByStatus(status: ClothingStatus): Flow<Int>
-
     /** Every article with at least one unit out at the laundry, including part-sent multi-unit ones. */
     @Query("SELECT * FROM clothing_items WHERE status != 'ARCHIVED' AND status != 'LOST' AND atLaundryQuantity > 0 ORDER BY title COLLATE NOCASE ASC")
     fun observeAtLaundry(): Flow<List<ClothingItem>>
@@ -48,20 +42,6 @@ interface ClothingDao {
 
     @Query("UPDATE clothing_items SET atLaundryQuantity = :atLaundry, lostQuantity = :lost WHERE id = :id")
     suspend fun setCounts(id: Long, atLaundry: Int, lost: Int)
-
-    @Query("SELECT COALESCE(SUM(price), 0.0) FROM clothing_items WHERE status = :status")
-    fun observeValueByStatus(status: ClothingStatus): Flow<Double>
-
-    @Query(
-        """
-        SELECT currency AS currency, COALESCE(SUM(price), 0.0) AS total
-        FROM clothing_items
-        WHERE status = :status AND price IS NOT NULL
-        GROUP BY currency
-        ORDER BY total DESC
-        """
-    )
-    fun observeValueByStatusAndCurrency(status: ClothingStatus): Flow<List<CurrencyAmount>>
 
     // Suggestions from previous entries, most used first (case-insensitive).
     @Query("SELECT brand FROM clothing_items WHERE brand IS NOT NULL AND TRIM(brand) != '' GROUP BY LOWER(brand) ORDER BY COUNT(*) DESC, brand COLLATE NOCASE")
@@ -90,9 +70,6 @@ interface ClothingDao {
 
     @Query("UPDATE clothing_items SET status = :status, updatedAt = :now WHERE id = :id")
     suspend fun setStatus(id: Long, status: ClothingStatus, now: Long = System.currentTimeMillis())
-
-    @Query("UPDATE clothing_items SET status = :status, updatedAt = :now WHERE id IN (:ids)")
-    suspend fun setStatusForAll(ids: List<Long>, status: ClothingStatus, now: Long = System.currentTimeMillis())
 
     @Query("SELECT * FROM clothing_items WHERE id IN (:ids)")
     suspend fun getByIds(ids: List<Long>): List<ClothingItem>
@@ -191,9 +168,6 @@ interface ClothingPhotoDao {
     @Query("DELETE FROM clothing_item_photos WHERE id = :id")
     suspend fun deleteById(id: Long)
 
-    @Query("DELETE FROM clothing_item_photos WHERE clothingItemId = :itemId")
-    suspend fun deleteAllForItem(itemId: Long)
-
     @Query("UPDATE clothing_item_photos SET isPrimary = 0 WHERE clothingItemId = :itemId")
     suspend fun clearPrimary(itemId: Long)
 
@@ -206,9 +180,6 @@ interface LaundryDao {
 
     @Query("SELECT * FROM laundry_tickets ORDER BY sentAt DESC")
     fun observeAllTickets(): Flow<List<LaundryTicket>>
-
-    @Query("SELECT * FROM laundry_tickets WHERE status != 'CLOSED' AND status != 'RECEIVED' ORDER BY sentAt DESC")
-    fun observeActiveTickets(): Flow<List<LaundryTicket>>
 
     @Query("SELECT * FROM laundry_tickets WHERE id = :id")
     suspend fun getTicket(id: Long): LaundryTicket?

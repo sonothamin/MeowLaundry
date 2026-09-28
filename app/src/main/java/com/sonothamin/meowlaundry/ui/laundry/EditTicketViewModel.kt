@@ -7,6 +7,7 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.LaundryTicketItem
 import com.sonothamin.meowlaundry.data.ServiceType
+import com.sonothamin.meowlaundry.data.TicketEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -118,7 +119,7 @@ class EditTicketViewModel(
     /** Adds one closet garment to the ticket directly - no separate picker, tap it and it's on. */
     fun addGarment(clothingItemId: Long) {
         viewModelScope.launch {
-            repository.addSingleUnitsToTicket(ticketId, listOf(clothingItemId))
+            repository.addGarmentsToTicket(ticketId, listOf(TicketEntry(clothingItemId)))
         }
     }
 
