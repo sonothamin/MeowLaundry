@@ -34,7 +34,35 @@ object Suggestions {
         GarmentPreset("Sneakers", ClothingType.FOOTWEAR), GarmentPreset("Boots", ClothingType.FOOTWEAR),
         GarmentPreset("Sandals", ClothingType.FOOTWEAR), GarmentPreset("Loafers", ClothingType.FOOTWEAR),
         GarmentPreset("Slippers", ClothingType.FOOTWEAR),
+        // Cold-weather pieces (auto-tagged as winter wear, see isWinterWear).
+        GarmentPreset("Jumper", ClothingType.TOP), GarmentPreset("Turtleneck", ClothingType.TOP),
+        GarmentPreset("Thermal top", ClothingType.UNDERWEAR),
+        GarmentPreset("Parka", ClothingType.OUTERWEAR), GarmentPreset("Long coat", ClothingType.OUTERWEAR),
+        GarmentPreset("Trench coat", ClothingType.OUTERWEAR), GarmentPreset("Overcoat", ClothingType.OUTERWEAR),
+        GarmentPreset("Fleece jacket", ClothingType.OUTERWEAR),
+        GarmentPreset("Muffler", ClothingType.ACCESSORY),
     )
+
+    /**
+     * Words that mark a garment as winter wear. Matched as whole words (see [isWinterWear]) so
+     * "raincoat" or "waistcoat" don't trip on "coat" the way a plain substring match would.
+     */
+    private val winterKeywords = setOf(
+        "muffler", "scarf", "shawl", "beanie", "gloves", "glove", "mittens", "balaclava", "earmuffs",
+        "sweater", "jumper", "pullover", "cardigan", "hoodie", "hoody", "sweatshirt", "fleece",
+        "turtleneck", "thermal", "thermals", "wool", "woolen", "woollen", "cashmere",
+        "jacket", "parka", "anorak", "coat", "overcoat", "trenchcoat", "poncho", "cape", "puffer",
+    )
+
+    /** A word that says the garment is the light/summer variant even if it contains a winter keyword ("rain jacket"). */
+    private val notWinterKeywords = setOf("rain", "summer", "linen", "sleeveless", "windbreaker")
+
+    /** True when [text] (a garment type or title) names something you'd wear in cold weather. */
+    fun isWinterWear(text: String): Boolean {
+        val words = text.lowercase().split(Regex("[^\\p{L}]+")).filter { it.isNotEmpty() }
+        if (words.isEmpty() || words.any { it in notWinterKeywords }) return false
+        return words.any { it in winterKeywords }
+    }
 
     val brands: List<String> = listOf(
         "Nike", "Adidas", "Puma", "Reebok", "New Balance", "Under Armour", "Uniqlo", "Zara", "H&M",

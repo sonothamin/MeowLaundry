@@ -49,6 +49,8 @@ data class ItemEditUiState(
     val notes: String = "",
     val status: ClothingStatus = ClothingStatus.IN_CLOSET,
     val isWinterWear: Boolean = false,
+    /** True while the winter tag is on because the garment type/title looked like winter wear, not because the user chose it. */
+    val winterAutoDetected: Boolean = false,
     val isLoading: Boolean = false,
     val saved: Boolean = false,
     val deleted: Boolean = false,
@@ -71,6 +73,8 @@ class ItemEditViewModel(
 
     private var categoryTouched = itemId != null // never override the category of an existing article
     private var currencyTouched = false
+    // Once the user flips the winter chip themselves, stop guessing. Existing articles keep whatever they saved.
+    private var winterTouched = itemId != null
 
     // Previous entries first (most used), then presets.
     val brandSuggestions: StateFlow<List<String>> = repository.observeBrandHistory()
@@ -87,8 +91,20 @@ class ItemEditViewModel(
     private fun edit(transform: (ItemEditUiState) -> ItemEditUiState) {
         _state.update { current ->
             val next = transform(current)
-            if (next.titleCustomized) next else next.copy(title = next.generatedTitle)
+            autoDetectWinter(if (next.titleCustomized) next else next.copy(title = next.generatedTitle))
         }
+    }
+
+    /**
+     * Turns the winter tag on (and off again) to match the garment type - "Hoodie", "Parka",
+     * "Long coat"... - until the person touches the chip themselves. A hand-written title is only
+     * consulted when no garment type is set.
+     */
+    private fun autoDetectWinter(state: ItemEditUiState): ItemEditUiState {
+        if (winterTouched) return state
+        val basis = state.garmentType.ifBlank { if (state.titleCustomized) state.title else "" }
+        val detected = Suggestions.isWinterWear(basis)
+        return state.copy(isWinterWear = detected, winterAutoDetected = detected)
     }
 
     init {
@@ -186,7 +202,8 @@ class ItemEditViewModel(
     }
 
     fun onWinterWearChange(value: Boolean) {
-        _state.update { it.copy(isWinterWear = value) }
+        winterTouched = true
+        _state.update { it.copy(isWinterWear = value, winterAutoDetected = false) }
     }
 
     /** Adds one or more photos picked from the gallery. Any number is allowed; the first ever added is primary. */

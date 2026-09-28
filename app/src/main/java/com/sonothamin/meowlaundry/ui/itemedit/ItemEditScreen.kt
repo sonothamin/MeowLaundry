@@ -270,12 +270,21 @@ fun ItemEditScreen(
                 )
             }
 
-            FilterChip(
-                selected = state.isWinterWear,
-                onClick = { viewModel.onWinterWearChange(!state.isWinterWear) },
-                label = { Text("Winter wear") },
-                leadingIcon = { Icon(Icons.Default.AcUnit, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) },
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                FilterChip(
+                    selected = state.isWinterWear,
+                    onClick = { viewModel.onWinterWearChange(!state.isWinterWear) },
+                    label = { Text("Winter wear") },
+                    leadingIcon = { Icon(Icons.Default.AcUnit, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) },
+                )
+                if (state.winterAutoDetected) {
+                    Text(
+                        "Tagged automatically from the garment type. Tap the chip to undo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
             OutlinedTextField(
                 value = state.notes,
