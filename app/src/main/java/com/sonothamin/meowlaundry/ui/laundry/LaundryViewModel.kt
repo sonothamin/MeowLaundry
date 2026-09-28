@@ -73,9 +73,10 @@ class LaundryViewModel(
             val its = itemsByTicket[ticket.id].orEmpty()
             TicketOverview(
                 ticket = ticket,
-                total = its.size,
-                returned = its.count { it.returned },
-                lost = its.count { it.lost },
+                // Units, not rows: a row of 5 socks counts as 5.
+                total = its.sumOf { it.quantity },
+                returned = its.sumOf { it.returnedQuantity },
+                lost = its.sumOf { it.lostQuantity },
                 thumbs = its.take(MAX_THUMBS).map { imageById[it.clothingItemId] },
             )
         }
@@ -203,7 +204,7 @@ class LaundryViewModel(
         val result = mutableListOf<Pair<LaundryTicket, List<com.sonothamin.meowlaundry.data.ClothingItem>>>()
         ids.forEach { id ->
             val ticket = repository.getTicket(id) ?: return@forEach
-            val garments = repository.observeGarmentsForTicket(id).first()
+            val garments = repository.garmentsForPrint(id)
             if (garments.isNotEmpty()) result += ticket to garments
         }
         return result

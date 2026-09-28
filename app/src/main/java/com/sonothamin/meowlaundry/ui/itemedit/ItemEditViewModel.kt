@@ -48,6 +48,10 @@ data class ItemEditUiState(
     val priceText: String = "",
     val notes: String = "",
     val status: ClothingStatus = ClothingStatus.IN_CLOSET,
+    /** How many identical units this article stands for (socks, boxers...). */
+    val quantity: Int = 1,
+    /** Units that are out at the laundry or lost - the quantity can't drop below these. */
+    val lockedQuantity: Int = 0,
     val isWinterWear: Boolean = false,
     /** True while the winter tag is on because the garment type/title looked like winter wear, not because the user chose it. */
     val winterAutoDetected: Boolean = false,
@@ -130,6 +134,8 @@ class ItemEditViewModel(
                             priceText = item.price?.let { p -> formatPrice(p) } ?: "",
                             notes = item.notes.orEmpty(),
                             status = item.status,
+                            quantity = item.quantity,
+                            lockedQuantity = item.atLaundryQuantity + item.lostQuantity,
                             isWinterWear = item.isWinterWear,
                         )
                         // A title that differs from what the fields would generate was written by
@@ -184,6 +190,10 @@ class ItemEditViewModel(
     }
 
     /** Keeps digits and a single decimal point (a comma is treated as the point). */
+    fun onQuantityChange(value: Int) {
+        _state.update { it.copy(quantity = value.coerceIn(it.lockedQuantity.coerceAtLeast(1), MAX_QUANTITY)) }
+    }
+
     fun onPriceChange(value: String) {
         val normalized = value.replace(',', '.')
         var seenDot = false
@@ -275,6 +285,7 @@ class ItemEditViewModel(
                     imagePath = current.primaryImagePath,
                     price = current.priceText.toDoubleOrNull(),
                     status = current.status,
+                    quantity = current.quantity,
                     isWinterWear = current.isWinterWear,
                     notes = current.notes.trim().ifBlank { null },
                     updatedAt = System.currentTimeMillis(),
@@ -316,5 +327,9 @@ class ItemEditViewModel(
             )
             _state.update { it.copy(deleted = true) }
         }
+    }
+
+    private companion object {
+        const val MAX_QUANTITY = 999
     }
 }

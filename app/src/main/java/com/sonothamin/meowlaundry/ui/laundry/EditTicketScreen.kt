@@ -52,6 +52,7 @@ import com.sonothamin.meowlaundry.ui.components.DueDateChips
 import com.sonothamin.meowlaundry.ui.components.SuggestionTextField
 import com.sonothamin.meowlaundry.ui.components.serviceIcon
 import com.sonothamin.meowlaundry.ui.components.serviceLabel
+import com.sonothamin.meowlaundry.ui.components.QuantityStepper
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 
 /**
@@ -142,6 +143,7 @@ fun EditTicketScreen(
                 availableToAdd = state.availableToAdd,
                 onAdd = viewModel::addGarment,
                 onRemove = viewModel::removeGarment,
+                onQuantity = viewModel::setQuantity,
             )
 
             OutlinedTextField(
@@ -168,6 +170,7 @@ private fun ItemsSection(
     availableToAdd: List<ClothingItem>,
     onAdd: (Long) -> Unit,
     onRemove: (Long) -> Unit,
+    onQuantity: (Long, Int) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(true) }
 
@@ -212,7 +215,11 @@ private fun ItemsSection(
                             EmptyRow("No garments on this ticket yet.")
                         } else {
                             added.forEach { garment ->
-                                AddedGarmentRow(garment = garment, onRemove = { onRemove(garment.item.id) })
+                                AddedGarmentRow(
+                                    garment = garment,
+                                    onRemove = { onRemove(garment.item.id) },
+                                    onQuantity = { onQuantity(garment.item.id, it) },
+                                )
                             }
                         }
                     }
@@ -260,7 +267,7 @@ private fun EmptyRow(text: String) {
 }
 
 @Composable
-private fun AddedGarmentRow(garment: TicketGarment, onRemove: () -> Unit) {
+private fun AddedGarmentRow(garment: TicketGarment, onRemove: () -> Unit, onQuantity: (Int) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -273,9 +280,23 @@ private fun AddedGarmentRow(garment: TicketGarment, onRemove: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                if (garment.removable) garmentTypeLabel(garment.item) else if (garment.lost) "Lost" else "Returned",
+                when {
+                    garment.quantity > 1 && garment.accountedFor > 0 -> "${garment.accountedFor} of ${garment.quantity} back or lost"
+                    garment.removable -> garmentTypeLabel(garment.item)
+                    garment.lost -> "Lost"
+                    else -> "Returned"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        // Several identical units can be topped up or trimmed right here.
+        if (garment.maxQuantity > 1) {
+            QuantityStepper(
+                value = garment.quantity,
+                onChange = onQuantity,
+                min = garment.minQuantity,
+                max = garment.maxQuantity,
             )
         }
         if (garment.removable) {
@@ -294,7 +315,11 @@ private fun AvailableGarmentRow(item: ClothingItem, onAdd: () -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(garmentTypeLabel(item), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                listOfNotNull(garmentTypeLabel(item), if (item.inClosetQuantity > 1) "\u00d7${item.inClosetQuantity} in closet" else null).joinToString(" \u00b7 "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         IconButton(onClick = onAdd) {
             Icon(Icons.Default.Add, contentDescription = "Add ${item.title}")

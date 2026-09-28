@@ -7,6 +7,7 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.ServiceType
+import com.sonothamin.meowlaundry.data.TicketEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,17 @@ class SendToLaundryViewModel(
 
     private val _selected = MutableStateFlow(preselectedIds)
     val selected: StateFlow<Set<Long>> = _selected.asStateFlow()
+
+    /** Units chosen per multi-unit article; anything not listed goes out in full. */
+    private val _quantities = MutableStateFlow<Map<Long, Int>>(emptyMap())
+    val quantities: StateFlow<Map<Long, Int>> = _quantities.asStateFlow()
+
+    fun setQuantity(id: Long, quantity: Int) {
+        _quantities.value = _quantities.value + (id to quantity)
+    }
+
+    private fun quantityFor(item: ClothingItem): Int =
+        (_quantities.value[item.id] ?: item.inClosetQuantity).coerceIn(1, item.inClosetQuantity.coerceAtLeast(1))
 
     private val _serviceType = MutableStateFlow(ServiceType.WASH_AND_PRESS)
     val serviceType: StateFlow<ServiceType> = _serviceType.asStateFlow()
@@ -72,8 +84,9 @@ class SendToLaundryViewModel(
     private var sending = false
 
     fun confirmSend() {
-        val ids = _selected.value.toList()
-        if (ids.isEmpty() || sending) return // ignore double taps: one tap = one ticket
+        val available = availableItems.value.associateBy { it.id }
+        val entries = _selected.value.mapNotNull { id -> available[id]?.let { TicketEntry(id, quantityFor(it)) } }
+        if (entries.isEmpty() || sending) return // ignore double taps: one tap = one ticket
         sending = true
         viewModelScope.launch {
             val ticketId = repository.sendToLaundry(
@@ -82,7 +95,7 @@ class SendToLaundryViewModel(
                     providerName = _providerName.value.trim().ifBlank { null },
                     expectedReturnAt = _dueAt.value,
                 ),
-                ids,
+                entries,
             )
             _createdTicketId.value = ticketId
         }

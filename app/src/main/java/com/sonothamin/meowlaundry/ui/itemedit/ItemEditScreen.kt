@@ -86,6 +86,7 @@ import com.sonothamin.meowlaundry.ui.components.GroupedField
 import com.sonothamin.meowlaundry.ui.components.SuggestionFieldGroup
 import com.sonothamin.meowlaundry.ui.components.CurrencyDropdown
 import com.sonothamin.meowlaundry.data.PhotoStore
+import com.sonothamin.meowlaundry.ui.components.QuantityStepper
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
@@ -267,6 +268,27 @@ fun ItemEditScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Quantity", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        if (state.lockedQuantity > 0) "${state.lockedQuantity} out at the laundry or lost, so it can't go lower"
+                        else "For identical items like socks or boxers - keep 1 for a single garment",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                QuantityStepper(
+                    value = state.quantity,
+                    onChange = viewModel::onQuantityChange,
+                    min = state.lockedQuantity.coerceAtLeast(1),
+                    max = 999,
                 )
             }
 

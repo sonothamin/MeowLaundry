@@ -147,15 +147,16 @@ fun ArticleViewScreen(
                 actions = {
                     if (item != null) {
                         // Quick laundry action: send it off, or jump to the ticket it's already out on.
-                        when {
-                            item.status == ClothingStatus.IN_CLOSET ->
-                                IconButton(onClick = { onSendToLaundry(item.id) }) {
-                                    Icon(Icons.Default.LocalLaundryService, contentDescription = "Send to laundry")
-                                }
-                            item.status == ClothingStatus.AT_LAUNDRY && care.activeTicketId != null ->
-                                IconButton(onClick = { onOpenTicket(care.activeTicketId) }) {
-                                    Icon(Icons.Default.ConfirmationNumber, contentDescription = "View laundry ticket")
-                                }
+                        // A multi-unit article can be both: some units home to send, some still out.
+                        if (item.status == ClothingStatus.IN_CLOSET) {
+                            IconButton(onClick = { onSendToLaundry(item.id) }) {
+                                Icon(Icons.Default.LocalLaundryService, contentDescription = "Send to laundry")
+                            }
+                        }
+                        if (item.status != ClothingStatus.ARCHIVED && item.atLaundryQuantity > 0 && care.activeTicketId != null) {
+                            IconButton(onClick = { onOpenTicket(care.activeTicketId) }) {
+                                Icon(Icons.Default.ConfirmationNumber, contentDescription = "View laundry ticket")
+                            }
                         }
                         IconButton(onClick = { onEdit(item.id) }) {
                             Icon(Icons.Default.Edit, contentDescription = "Edit article")
@@ -370,7 +371,20 @@ fun ArticleViewScreen(
                     InfoBlock(
                         rows = listOf(
                             listOf(
-                                InfoCell("Status", statusLabel(item.status), statusIcon(item.status), valueColor = statusColor(item.status)),
+                                InfoCell(
+                                    "Status",
+                                    statusLabel(item.status),
+                                    statusIcon(item.status),
+                                    // For several identical units, say where they are: "5 home · 2 out".
+                                    sub = if (item.quantity > 1 && item.status != ClothingStatus.ARCHIVED) {
+                                        listOfNotNull(
+                                            "${item.inClosetQuantity} home",
+                                            if (item.atLaundryQuantity > 0) "${item.atLaundryQuantity} out" else null,
+                                            if (item.lostQuantity > 0) "${item.lostQuantity} lost" else null,
+                                        ).joinToString(" \u00b7 ")
+                                    } else null,
+                                    valueColor = statusColor(item.status),
+                                ),
                                 dateCell("Last washed", Icons.Default.LocalLaundryService, care.lastWashedAt),
                                 dateCell("Last pressed", Icons.Default.AutoAwesome, care.lastPressedAt),
                             ),
@@ -394,25 +408,27 @@ fun ArticleViewScreen(
                 }
             }
 
-            // --- Quick laundry action (mirrors the app bar) ---
-            if (item.status == ClothingStatus.IN_CLOSET || (item.status == ClothingStatus.AT_LAUNDRY && care.activeTicketId != null)) {
+            // --- Quick laundry actions (mirror the app bar) ---
+            val canSend = item.status == ClothingStatus.IN_CLOSET
+            val canViewTicket = item.status != ClothingStatus.ARCHIVED && item.atLaundryQuantity > 0 && care.activeTicketId != null
+            if (canSend || canViewTicket) {
                 item {
-                    val atLaundry = item.status == ClothingStatus.AT_LAUNDRY
-                    FilledTonalButton(
-                        onClick = {
-                            if (atLaundry) onOpenTicket(care.activeTicketId!!) else onSendToLaundry(item.id)
-                        },
+                    Column(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        Icon(
-                            if (atLaundry) Icons.Default.ConfirmationNumber else Icons.Default.LocalLaundryService,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(
-                            if (atLaundry) "View laundry ticket" else "Send to laundry",
-                            modifier = Modifier.padding(start = Spacing.sm),
-                        )
+                        if (canSend) {
+                            FilledTonalButton(onClick = { onSendToLaundry(item.id) }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Default.LocalLaundryService, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text("Send to laundry", modifier = Modifier.padding(start = Spacing.sm))
+                            }
+                        }
+                        if (canViewTicket) {
+                            FilledTonalButton(onClick = { onOpenTicket(care.activeTicketId!!) }, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Default.ConfirmationNumber, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text("View laundry ticket", modifier = Modifier.padding(start = Spacing.sm))
+                            }
+                        }
                     }
                 }
             }

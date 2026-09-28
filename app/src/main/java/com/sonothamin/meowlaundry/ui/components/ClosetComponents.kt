@@ -12,18 +12,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalLaundryService
 import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -123,6 +128,62 @@ fun WinterBadge(modifier: Modifier = Modifier) {
     }
 }
 
+
+/** Units still owned, e.g. "x7" - null for an ordinary single garment, so nothing extra is shown. */
+fun quantityLabel(item: ClothingItem): String? =
+    if (item.quantity <= 1 && item.atLaundryQuantity <= 1) null else "\u00d7${item.ownedQuantity}"
+
+/** "5 out" when only some of a multi-unit article's units are at the laundry. */
+fun partlyOutLabel(item: ClothingItem): String? =
+    if (item.ownedQuantity > 1 && item.atLaundryQuantity in 1 until item.ownedQuantity) "${item.atLaundryQuantity} out" else null
+
+/** Type, plus the unit count and how many are out, joined for the small line under a title. */
+fun clothingSubtitle(item: ClothingItem): String =
+    listOfNotNull(
+        item.type.name.lowercase().replaceFirstChar { it.uppercase() },
+        quantityLabel(item),
+        partlyOutLabel(item),
+    ).joinToString(" \u00b7 ")
+
+/** Small pill overlaid on a photo showing how many units the article stands for. */
+@Composable
+fun QuantityBadge(text: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+    ) {
+        Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp))
+    }
+}
+
+/** Compact - / value / + control for choosing a number of units between [min] and [max]. */
+@Composable
+fun QuantityStepper(
+    value: Int,
+    onChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    min: Int = 0,
+    max: Int = Int.MAX_VALUE,
+    enabled: Boolean = true,
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onChange((value - 1).coerceAtLeast(min)) }, enabled = enabled && value > min, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Default.Remove, contentDescription = "Fewer")
+        }
+        Text(
+            value.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.width(32.dp),
+        )
+        IconButton(onClick = { onChange((value + 1).coerceAtMost(max)) }, enabled = enabled && value < max, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Default.Add, contentDescription = "More")
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ClothingCard(
@@ -132,6 +193,8 @@ fun ClothingCard(
     selected: Boolean = false,
     onSelectToggle: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /** Optional content under the title, e.g. the quantity stepper on the send-to-laundry screen. */
+    footer: (@Composable () -> Unit)? = null,
 ) {
     Card(
         modifier = modifier
@@ -176,6 +239,9 @@ fun ClothingCard(
                             .padding(Spacing.xs),
                     )
                 }
+                quantityLabel(item)?.let {
+                    QuantityBadge(text = it, modifier = Modifier.align(Alignment.BottomStart).padding(Spacing.xs))
+                }
                 if (selected) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
@@ -196,10 +262,14 @@ fun ClothingCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = item.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                    text = listOfNotNull(
+                        item.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                        partlyOutLabel(item),
+                    ).joinToString(" \u00b7 "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                footer?.invoke()
             }
         }
     }
@@ -259,7 +329,7 @@ fun ClothingListRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = item.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                    text = clothingSubtitle(item),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

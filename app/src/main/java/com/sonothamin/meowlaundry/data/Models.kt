@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -61,7 +62,25 @@ data class ClothingItem(
     val currency: String = "USD",
     /** Tagged as a seasonal/winter garment - can be hidden from the everyday closet view. */
     val isWinterWear: Boolean = false,
-)
+    /**
+     * How many identical units this article stands for (socks, boxers, undershirts...). Counts
+     * every unit still owned, including ones out at the laundry. 1 for an ordinary garment.
+     */
+    @ColumnInfo(defaultValue = "1") val quantity: Int = 1,
+    /**
+     * Cache of how many units are out at the laundry right now, and how many were lost there in
+     * total. Both are recomputed from the ticket rows (see ClosetRepository.recomputeCounts), so
+     * the ticket rows stay the single source of truth.
+     */
+    @ColumnInfo(defaultValue = "0") val atLaundryQuantity: Int = 0,
+    @ColumnInfo(defaultValue = "0") val lostQuantity: Int = 0,
+) {
+    /** Units still owned (not lost). */
+    val ownedQuantity: Int get() = (quantity - lostQuantity).coerceAtLeast(0)
+
+    /** Units sitting in the closet, i.e. available to send. */
+    val inClosetQuantity: Int get() = (ownedQuantity - atLaundryQuantity).coerceAtLeast(0)
+}
 
 /**
  * One time a garment went to the laundry, flattened with the ticket it belonged to so the article
@@ -77,6 +96,10 @@ data class ItemCareEvent(
     val returned: Boolean,
     val lost: Boolean,
     val ticketStatus: TicketStatus,
+    /** Units of the article on that trip and how many came back / were lost (1/…/… for a single garment). */
+    val quantity: Int = 1,
+    val returnedQuantity: Int = 0,
+    val lostQuantity: Int = 0,
 )
 
 /** Sum of prices for one currency; used so values in different currencies are never added together. */
@@ -147,10 +170,20 @@ data class LaundryTicketItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val ticketId: Long,
     val clothingItemId: Long,
+    /** Fully accounted for with at least one unit back. Derived from the quantities below. */
     val returned: Boolean = false,
+    /** Fully accounted for with at least one unit lost. Derived from the quantities below. */
     val lost: Boolean = false,
     val returnedAt: Long? = null,
-)
+    /** Units of the article sent on this ticket, and how many of them have come back / been lost. */
+    @ColumnInfo(defaultValue = "1") val quantity: Int = 1,
+    @ColumnInfo(defaultValue = "0") val returnedQuantity: Int = 0,
+    @ColumnInfo(defaultValue = "0") val lostQuantity: Int = 0,
+) {
+    /** Units not yet accounted for. */
+    val pendingQuantity: Int get() = (quantity - returnedQuantity - lostQuantity).coerceAtLeast(0)
+    val isResolved: Boolean get() = pendingQuantity == 0
+}
 
 /** [LaundryTicket] together with the garments in it, for list/detail screens. */
 data class TicketWithItems(
@@ -191,6 +224,8 @@ data class BackupClothingItem(
     val currency: String = "USD",
     // Added in DB v4; defaults keep older backups importable.
     val isWinterWear: Boolean = false,
+    // Added in DB v5 (quantities); older backups import as single units.
+    val quantity: Int = 1,
 )
 
 @Serializable
@@ -220,4 +255,8 @@ data class BackupTicketItem(
     val returned: Boolean,
     val lost: Boolean,
     val returnedAt: Long?,
+    // Added in DB v5 (quantities). Older backups: null means "derive from the returned/lost flags".
+    val quantity: Int = 1,
+    val returnedQuantity: Int? = null,
+    val lostQuantity: Int? = null,
 )

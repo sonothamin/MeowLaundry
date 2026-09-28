@@ -21,8 +21,16 @@ data class TicketGarment(
     val item: ClothingItem,
     val returned: Boolean,
     val lost: Boolean,
+    /** Units of this article on the ticket, and how many of them are already accounted for. */
+    val quantity: Int = 1,
+    val accountedFor: Int = 0,
 ) {
-    val removable: Boolean get() = !returned && !lost
+    /** Only a row with nothing returned or lost yet can be taken off the ticket outright. */
+    val removable: Boolean get() = accountedFor == 0
+
+    /** Fewest units the row can be reduced to, and the most the closet can top it up to. */
+    val minQuantity: Int get() = accountedFor.coerceAtLeast(1)
+    val maxQuantity: Int get() = quantity + item.inClosetQuantity
 }
 
 data class EditTicketUiState(
@@ -84,7 +92,13 @@ class EditTicketViewModel(
                 val itemsById = ticketItems.associateBy(LaundryTicketItem::clothingItemId)
                 val ticketGarments = garments.map { garment ->
                     val ticketItem = itemsById[garment.id]
-                    TicketGarment(item = garment, returned = ticketItem?.returned ?: false, lost = ticketItem?.lost ?: false)
+                    TicketGarment(
+                        item = garment,
+                        returned = ticketItem?.returned ?: false,
+                        lost = ticketItem?.lost ?: false,
+                        quantity = ticketItem?.quantity ?: 1,
+                        accountedFor = (ticketItem?.returnedQuantity ?: 0) + (ticketItem?.lostQuantity ?: 0),
+                    )
                 }
                 ticketGarments to inCloset
             }.collect { (ticketGarments, inCloset) ->
@@ -102,6 +116,13 @@ class EditTicketViewModel(
     fun addGarment(clothingItemId: Long) {
         viewModelScope.launch {
             repository.addGarmentsToTicket(ticketId, listOf(clothingItemId))
+        }
+    }
+
+    /** Changes how many units of an article are on the ticket. */
+    fun setQuantity(clothingItemId: Long, quantity: Int) {
+        viewModelScope.launch {
+            repository.setTicketItemQuantity(ticketId, clothingItemId, quantity)
         }
     }
 

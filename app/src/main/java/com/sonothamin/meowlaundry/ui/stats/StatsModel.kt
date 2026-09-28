@@ -72,11 +72,11 @@ fun computeStats(
     val clothingById = clothing.associateBy { it.id }
 
     fun lostValues(list: List<LaundryTicketItem>): List<CurrencyAmount> =
-        list.filter { it.lost }
-            .mapNotNull { clothingById[it.clothingItemId] }
-            .filter { it.price != null }
-            .groupBy { it.currency }
-            .map { (currency, group) -> CurrencyAmount(currency, group.sumOf { it.price ?: 0.0 }) }
+        // Lost value counts every lost unit: 2 lost pairs of socks at 5.00 each is 10.00.
+        list.filter { it.lostQuantity > 0 }
+            .mapNotNull { row -> clothingById[row.clothingItemId]?.takeIf { it.price != null }?.let { it to row.lostQuantity } }
+            .groupBy { (item, _) -> item.currency }
+            .map { (currency, group) -> CurrencyAmount(currency, group.sumOf { (item, units) -> (item.price ?: 0.0) * units }) }
             .sortedByDescending { it.total }
 
     // On time = back on or before the due day. Still-out tickets already past due count as late.
@@ -121,8 +121,8 @@ fun computeStats(
             ProviderStats(
                 name = group.first().providerName?.trim()?.takeIf { it.isNotEmpty() },
                 trips = group.size,
-                garments = groupItems.size,
-                lost = groupItems.count { it.lost },
+                garments = groupItems.sumOf { it.quantity },
+                lost = groupItems.sumOf { it.lostQuantity },
                 lostValues = lostValues(groupItems),
             )
         }
@@ -135,9 +135,10 @@ fun computeStats(
 
     return StatsData(
         trips = inRange.size,
-        garmentsSent = items.size,
-        returned = items.count { it.returned },
-        lost = items.count { it.lost },
+        // Units, not rows: a ticket line of 5 socks is 5 garments sent.
+        garmentsSent = items.sumOf { it.quantity },
+        returned = items.sumOf { it.returnedQuantity },
+        lost = items.sumOf { it.lostQuantity },
         lostValues = lostValues(items),
         onTime = onTime,
         dueTracked = tracked,

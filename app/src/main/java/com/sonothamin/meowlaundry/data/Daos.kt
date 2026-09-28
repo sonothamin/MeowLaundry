@@ -29,6 +29,23 @@ interface ClothingDao {
     @Query("SELECT COUNT(*) FROM clothing_items WHERE status = :status")
     fun observeCountByStatus(status: ClothingStatus): Flow<Int>
 
+    /** Every article with at least one unit out at the laundry, including part-sent multi-unit ones. */
+    @Query("SELECT * FROM clothing_items WHERE status != 'ARCHIVED' AND status != 'LOST' AND atLaundryQuantity > 0 ORDER BY title COLLATE NOCASE ASC")
+    fun observeAtLaundry(): Flow<List<ClothingItem>>
+
+    /** Units (not articles) sitting in the closet: 7 boxers count as 7. */
+    @Query("SELECT COALESCE(SUM(quantity - lostQuantity - atLaundryQuantity), 0) FROM clothing_items WHERE status != 'ARCHIVED' AND status != 'LOST'")
+    fun observeInClosetUnits(): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(atLaundryQuantity), 0) FROM clothing_items WHERE status != 'ARCHIVED' AND status != 'LOST'")
+    fun observeAtLaundryUnits(): Flow<Int>
+
+    @Query("UPDATE clothing_items SET quantity = :quantity WHERE id = :id")
+    suspend fun setQuantity(id: Long, quantity: Int)
+
+    @Query("UPDATE clothing_items SET atLaundryQuantity = :atLaundry, lostQuantity = :lost WHERE id = :id")
+    suspend fun setCounts(id: Long, atLaundry: Int, lost: Int)
+
     @Query("SELECT COALESCE(SUM(price), 0.0) FROM clothing_items WHERE status = :status")
     fun observeValueByStatus(status: ClothingStatus): Flow<Double>
 
@@ -107,16 +124,25 @@ interface ClothingDao {
     @Query("UPDATE clothing_items SET imagePath = :path WHERE id = :id")
     suspend fun setImagePath(id: Long, path: String?)
 
-    // "Lost" = archived with reason LOST. The old LOST status is still counted so nothing is missed
-    // until archiveLegacyLost() has moved those garments over.
-    @Query("SELECT COUNT(*) FROM clothing_items WHERE status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST')")
+    // Lost units per article: whatever the laundry tickets recorded as lost, or - for an article that
+    // was archived as lost (by a ticket or by hand) - all of its units, whichever is larger. A fully
+    // lost article has lostQuantity == quantity, so nothing is counted twice. The old LOST status is
+    // still counted so nothing is missed until archiveLegacyLost() has moved those garments over.
+    @Query(
+        """
+        SELECT COALESCE(SUM(MAX(lostQuantity, CASE WHEN status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST') THEN quantity ELSE 0 END)), 0)
+        FROM clothing_items
+        """
+    )
     fun observeLostCount(): Flow<Int>
 
     @Query(
         """
-        SELECT currency AS currency, COALESCE(SUM(price), 0.0) AS total
+        SELECT currency AS currency,
+               COALESCE(SUM(price * MAX(lostQuantity, CASE WHEN status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST') THEN quantity ELSE 0 END)), 0.0) AS total
         FROM clothing_items
-        WHERE (status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST')) AND price IS NOT NULL
+        WHERE price IS NOT NULL
+          AND MAX(lostQuantity, CASE WHEN status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST') THEN quantity ELSE 0 END) > 0
         GROUP BY currency
         ORDER BY total DESC
         """
@@ -290,6 +316,9 @@ interface LaundryDao {
     @Query("SELECT * FROM laundry_ticket_items WHERE ticketId = :ticketId")
     suspend fun getItemsForTicket(ticketId: Long): List<LaundryTicketItem>
 
+    @Query("SELECT * FROM laundry_ticket_items WHERE clothingItemId = :clothingItemId")
+    suspend fun getItemsForClothing(clothingItemId: Long): List<LaundryTicketItem>
+
     @Query("SELECT * FROM laundry_ticket_items")
     suspend fun getAllTicketItems(): List<LaundryTicketItem>
 
@@ -317,7 +346,8 @@ interface LaundryDao {
         """
         SELECT lti.id AS ticketItemId, t.id AS ticketId, t.serviceType AS serviceType,
                t.providerName AS providerName, t.sentAt AS sentAt, lti.returnedAt AS returnedAt,
-               lti.returned AS returned, lti.lost AS lost, t.status AS ticketStatus
+               lti.returned AS returned, lti.lost AS lost, t.status AS ticketStatus,
+               lti.quantity AS quantity, lti.returnedQuantity AS returnedQuantity, lti.lostQuantity AS lostQuantity
         FROM laundry_ticket_items lti
         INNER JOIN laundry_tickets t ON t.id = lti.ticketId
         WHERE lti.clothingItemId = :clothingItemId
@@ -326,12 +356,14 @@ interface LaundryDao {
     )
     fun observeCareEvents(clothingItemId: Long): Flow<List<ItemCareEvent>>
 
+    /** Creates the ticket and its rows together; the caller recomputes each article's cached counts. */
     @Transaction
-    suspend fun createTicketWithItems(ticket: LaundryTicket, clothingItemIds: List<Long>, clothingDao: ClothingDao): Long {
+    suspend fun createTicketWithItems(ticket: LaundryTicket, entries: List<TicketEntry>): Long {
         val ticketId = insertTicket(ticket)
-        val items = clothingItemIds.map { LaundryTicketItem(ticketId = ticketId, clothingItemId = it) }
-        insertTicketItems(items)
-        clothingDao.setStatusForAll(clothingItemIds, ClothingStatus.AT_LAUNDRY)
+        insertTicketItems(entries.map { LaundryTicketItem(ticketId = ticketId, clothingItemId = it.clothingItemId, quantity = it.quantity) })
         return ticketId
     }
 }
+
+/** One article going on a ticket, and how many of its units. */
+data class TicketEntry(val clothingItemId: Long, val quantity: Int = 1)

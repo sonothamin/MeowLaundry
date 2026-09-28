@@ -38,6 +38,7 @@ import com.sonothamin.meowlaundry.data.ServiceType
 import com.sonothamin.meowlaundry.ui.components.ClothingCard
 import com.sonothamin.meowlaundry.ui.components.DueDateChips
 import com.sonothamin.meowlaundry.ui.components.EmptyState
+import com.sonothamin.meowlaundry.ui.components.QuantityStepper
 import com.sonothamin.meowlaundry.ui.components.rememberNotificationPermissionRequester
 import com.sonothamin.meowlaundry.ui.components.serviceLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -51,12 +52,18 @@ fun SendToLaundryScreen(
 ) {
     val items by viewModel.availableItems.collectAsStateWithLifecycle()
     val selected by viewModel.selected.collectAsStateWithLifecycle()
+    val quantities by viewModel.quantities.collectAsStateWithLifecycle()
     val serviceType by viewModel.serviceType.collectAsStateWithLifecycle()
     val providerName by viewModel.providerName.collectAsStateWithLifecycle()
     val providerSuggestions by viewModel.providerSuggestions.collectAsStateWithLifecycle()
     val dueAt by viewModel.dueAt.collectAsStateWithLifecycle()
     val askNotificationPermission = rememberNotificationPermissionRequester()
     val createdTicketId by viewModel.createdTicketId.collectAsStateWithLifecycle()
+
+    // Units, not articles: 5 of the 7 boxers plus a shirt is 6 items going out.
+    val selectedUnits = items.filter { it.id in selected }.sumOf { item ->
+        (quantities[item.id] ?: item.inClosetQuantity).coerceIn(1, item.inClosetQuantity.coerceAtLeast(1))
+    }
 
     LaunchedEffect(createdTicketId) {
         createdTicketId?.let(onSent)
@@ -87,7 +94,7 @@ fun SendToLaundryScreen(
                         if (at != null) askNotificationPermission() // reminders need the notification permission
                     },
                 )
-                Text("${selected.size} garment(s) selected", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                Text("$selectedUnits item(s) selected", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
             }
 
             if (items.isEmpty()) {
@@ -105,11 +112,32 @@ fun SendToLaundryScreen(
                     modifier = Modifier.weight(1f),
                 ) {
                     items(items, key = { it.id }) { item ->
+                        val available = item.inClosetQuantity.coerceAtLeast(1)
                         ClothingCard(
                             item = item,
                             onClick = {},
                             selected = item.id in selected,
                             onSelectToggle = { viewModel.toggleSelection(item.id) },
+                            footer = if (item.id in selected && available > 1) {
+                                {
+                                    androidx.compose.foundation.layout.Row(
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        QuantityStepper(
+                                            value = (quantities[item.id] ?: available).coerceIn(1, available),
+                                            onChange = { viewModel.setQuantity(item.id, it) },
+                                            min = 1,
+                                            max = available,
+                                        )
+                                        Text(
+                                            "of $available",
+                                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            } else null,
                         )
                     }
                 }
@@ -118,7 +146,7 @@ fun SendToLaundryScreen(
                     enabled = selected.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth().padding(Spacing.md),
                 ) {
-                    Text("Send ${selected.size} garment(s)")
+                    Text("Send $selectedUnits item(s)")
                 }
             }
         }

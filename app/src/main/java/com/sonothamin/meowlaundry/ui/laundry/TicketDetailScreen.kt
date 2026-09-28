@@ -89,6 +89,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import com.sonothamin.meowlaundry.data.ArchiveReason
+import com.sonothamin.meowlaundry.ui.components.QuantityStepper
+import com.sonothamin.meowlaundry.data.Resolution
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.TicketFormat
 import com.sonothamin.meowlaundry.data.ClothingStatus
@@ -204,9 +206,10 @@ fun TicketDetailScreen(
         if (ticket == null) return@Scaffold
 
         val closed = state.isClosed
-        val total = state.garments.size
-        val returnedCount = state.garments.count { state.decisionFor(it.id) == ItemDecision.RETURNED }
-        val lostCount = state.garments.count { state.decisionFor(it.id) == ItemDecision.LOST }
+        // Units, not articles: a row of 5 socks is 5 of the ticket's items.
+        val total = state.totalUnits
+        val returnedCount = state.returnedUnits
+        val lostCount = state.lostUnits
         val accounted = returnedCount + lostCount
 
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -262,24 +265,35 @@ fun TicketDetailScreen(
                 }
 
                 items(state.garments, key = { it.id }) { garment ->
-                    val saved = state.savedDecision(garment.id)
+                    val savedRes = state.savedResolution(garment.id)
+                    val quantity = state.quantityFor(garment.id)
+                    val floor = state.returnedFloor(garment)
                     val lockedReason = when {
                         closed -> null // the banner already explains it
-                        saved != ItemDecision.PENDING && garment.status == ClothingStatus.AT_LAUNDRY ->
-                            "Out again on another ticket, so this can't be changed here"
                         // Lost garments are archived as "Lost" - that one stays undoable from here.
                         garment.status == ClothingStatus.ARCHIVED &&
-                            !(saved == ItemDecision.LOST && garment.archiveReason == ArchiveReason.LOST) ->
+                            !(savedRes.lost > 0 && garment.archiveReason == ArchiveReason.LOST) ->
                             "Archived, so this can't be changed here"
+                        floor >= quantity ->
+                            if (quantity == 1) "Out again on another ticket, so this can't be changed here"
+                            else "All of these are out again on another ticket, so they can't be changed here"
                         else -> null
                     }
+                    val note = if (lockedReason == null && !closed && floor > 0) {
+                        "$floor of these are out again on another ticket, so they stay marked as back"
+                    } else null
                     GarmentDecisionCard(
                         garment = garment,
+                        quantity = quantity,
+                        resolution = state.resolutionFor(garment.id),
                         decision = state.decisionFor(garment.id),
                         edited = garment.id in state.edits,
                         locked = closed || lockedReason != null,
-                        lockedReason = lockedReason,
+                        lockedReason = lockedReason ?: note,
+                        returnedFloor = floor,
                         onDecision = { viewModel.setDecision(garment.id, it) },
+                        onReturnedUnits = { viewModel.setReturnedUnits(garment.id, it) },
+                        onLostUnits = { viewModel.setLostUnits(garment.id, it) },
                     )
                 }
             }
@@ -565,11 +579,16 @@ private fun ClosedBanner() {
 @Composable
 private fun GarmentDecisionCard(
     garment: ClothingItem,
+    quantity: Int,
+    resolution: Resolution,
     decision: ItemDecision,
     edited: Boolean,
     locked: Boolean,
     lockedReason: String?,
+    returnedFloor: Int,
     onDecision: (ItemDecision) -> Unit,
+    onReturnedUnits: (Int) -> Unit,
+    onLostUnits: (Int) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -602,6 +621,7 @@ private fun GarmentDecisionCard(
                         listOfNotNull(
                             garment.type.name.lowercase().replaceFirstChar { it.uppercase() },
                             garment.brand?.takeIf { it.isNotBlank() },
+                            if (quantity > 1) "\u00d7$quantity" else null,
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -617,28 +637,69 @@ private fun GarmentDecisionCard(
                 }
             }
 
-            val options = ItemDecision.values()
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                options.forEachIndexed { index, option ->
-                    val (container, content) = decisionColors(option)
-                    SegmentedButton(
-                        selected = decision == option,
-                        onClick = { onDecision(option) },
-                        enabled = !locked,
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                        colors = SegmentedButtonDefaults.colors(
-                            activeContainerColor = container,
-                            activeContentColor = content,
-                        ),
-                        icon = {
-                            Icon(
-                                decisionIcon(option),
-                                contentDescription = null,
-                                modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
-                            )
-                        },
-                        label = { Text(decisionLabel(option), maxLines = 1) },
-                    )
+            if (quantity <= 1) {
+                val options = ItemDecision.values()
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    options.forEachIndexed { index, option ->
+                        val (container, content) = decisionColors(option)
+                        SegmentedButton(
+                            selected = decision == option,
+                            onClick = { onDecision(option) },
+                            enabled = !locked,
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                            colors = SegmentedButtonDefaults.colors(
+                                activeContainerColor = container,
+                                activeContentColor = content,
+                            ),
+                            icon = {
+                                Icon(
+                                    decisionIcon(option),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+                                )
+                            },
+                            label = { Text(decisionLabel(option), maxLines = 1) },
+                        )
+                    }
+                }
+            } else {
+                // Several identical units: count how many came back and how many were lost.
+                val stillOut = (quantity - resolution.returned - resolution.lost).coerceAtLeast(0)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(decisionIcon(ItemDecision.RETURNED), contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text("Back", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = Spacing.xs).weight(1f))
+                        QuantityStepper(
+                            value = resolution.returned,
+                            onChange = onReturnedUnits,
+                            min = returnedFloor,
+                            max = quantity - resolution.lost,
+                            enabled = !locked,
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(decisionIcon(ItemDecision.LOST), contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                        Text("Lost", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = Spacing.xs).weight(1f))
+                        QuantityStepper(
+                            value = resolution.lost,
+                            onChange = onLostUnits,
+                            min = 0,
+                            max = quantity - resolution.returned,
+                            enabled = !locked,
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(decisionIcon(ItemDecision.PENDING), contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (stillOut == 0) "Nothing left out" else "$stillOut still out",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = Spacing.xs).weight(1f),
+                        )
+                        if (!locked && stillOut > 0) {
+                            TextButton(onClick = { onDecision(ItemDecision.RETURNED) }) { Text("All back") }
+                        }
+                    }
                 }
             }
 

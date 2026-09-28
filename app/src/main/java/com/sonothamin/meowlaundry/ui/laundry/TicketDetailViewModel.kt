@@ -7,6 +7,7 @@ import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.LaundryTicketItem
+import com.sonothamin.meowlaundry.data.Resolution
 import com.sonothamin.meowlaundry.data.TicketFormat
 import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.print.PrintDispatcher
@@ -36,30 +37,57 @@ data class TicketDetailUiState(
     val ticket: LaundryTicket? = null,
     val garments: List<ClothingItem> = emptyList(),
     val ticketItems: List<LaundryTicketItem> = emptyList(),
-    /** Unsaved changes only: garment id -> the decision the user picked, which differs from what's saved. */
-    val edits: Map<Long, ItemDecision> = emptyMap(),
+    /** Unsaved changes only: garment id -> how many units are now back / lost, differing from what's saved. */
+    val edits: Map<Long, Resolution> = emptyMap(),
     val isPrinting: Boolean = false,
     val previewBitmap: Bitmap? = null,
     /** The ticket format the preview above was rendered in - decides what the export button does. */
     val previewFormat: TicketFormat = TicketFormat.RECEIPT,
 ) {
-    fun savedDecision(garmentId: Long): ItemDecision {
-        val item = ticketItems.find { it.clothingItemId == garmentId } ?: return ItemDecision.PENDING
+    fun rowFor(garmentId: Long): LaundryTicketItem? = ticketItems.find { it.clothingItemId == garmentId }
+
+    /** Units of this article on the ticket (1 for an ordinary garment). */
+    fun quantityFor(garmentId: Long): Int = rowFor(garmentId)?.quantity ?: 1
+
+    fun savedResolution(garmentId: Long): Resolution =
+        rowFor(garmentId)?.let { Resolution(it.returnedQuantity, it.lostQuantity) } ?: Resolution(0, 0)
+
+    /** What the row shows: the unsaved pick if there is one, otherwise what's saved. */
+    fun resolutionFor(garmentId: Long): Resolution = edits[garmentId] ?: savedResolution(garmentId)
+
+    private fun decisionOf(garmentId: Long, r: Resolution): ItemDecision {
+        val q = quantityFor(garmentId)
         return when {
-            item.returned -> ItemDecision.RETURNED
-            item.lost -> ItemDecision.LOST
-            else -> ItemDecision.PENDING
+            r.returned + r.lost < q -> ItemDecision.PENDING
+            r.returned > 0 -> ItemDecision.RETURNED
+            else -> ItemDecision.LOST
         }
     }
 
-    /** What the row shows: the unsaved pick if there is one, otherwise what's saved. */
-    fun decisionFor(garmentId: Long): ItemDecision = edits[garmentId] ?: savedDecision(garmentId)
+    fun savedDecision(garmentId: Long): ItemDecision = decisionOf(garmentId, savedResolution(garmentId))
+
+    /** Coarse per-article state: PENDING while any unit is still out, otherwise RETURNED (any back) or LOST. */
+    fun decisionFor(garmentId: Long): ItemDecision = decisionOf(garmentId, resolutionFor(garmentId))
 
     val hasChanges: Boolean get() = edits.isNotEmpty()
 
     /** True when, after the current picks are saved, nothing is left out at the laundry. */
     val allAccountedFor: Boolean
         get() = garments.isNotEmpty() && garments.all { decisionFor(it.id) != ItemDecision.PENDING }
+
+    /** Unit totals across the ticket, counting unsaved picks. */
+    val totalUnits: Int get() = garments.sumOf { quantityFor(it.id) }
+    val returnedUnits: Int get() = garments.sumOf { resolutionFor(it.id).returned }
+    val lostUnits: Int get() = garments.sumOf { resolutionFor(it.id).lost }
+
+    /**
+     * The fewest units of this article that can be shown as back: units that already came home and
+     * have since gone out again on another ticket can't be pulled back from here.
+     */
+    fun returnedFloor(garment: ClothingItem): Int {
+        val saved = savedResolution(garment.id).returned
+        return (saved - garment.inClosetQuantity).coerceAtLeast(0)
+    }
 
     val isClosed: Boolean get() = ticket?.status == TicketStatus.CLOSED
 
@@ -73,7 +101,7 @@ class TicketDetailViewModel(
     private val ticketId: Long,
 ) : ViewModel() {
 
-    private val edits = MutableStateFlow<Map<Long, ItemDecision>>(emptyMap())
+    private val edits = MutableStateFlow<Map<Long, Resolution>>(emptyMap())
     private val isPrinting = MutableStateFlow(false)
     private val previewBitmap = MutableStateFlow<Bitmap?>(null)
     private val previewFormat = MutableStateFlow(TicketFormat.RECEIPT)
@@ -93,13 +121,41 @@ class TicketDetailViewModel(
         .combine(previewFormat) { s, format -> s.copy(previewFormat = format) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TicketDetailUiState())
 
-    /** Picks a decision for one garment. Picking what's already saved simply clears the unsaved change. */
-    fun setDecision(garmentId: Long, decision: ItemDecision) {
+    private fun put(garmentId: Long, wanted: Resolution) {
         val current = state.value
         if (current.isClosed) return
+        val garment = current.garments.find { it.id == garmentId } ?: return
+        val q = current.quantityFor(garmentId)
+        val returned = wanted.returned.coerceIn(current.returnedFloor(garment), q)
+        val lost = wanted.lost.coerceIn(0, q - returned)
+        val next = Resolution(returned, lost)
         edits.value = edits.value.toMutableMap().also {
-            if (decision == current.savedDecision(garmentId)) it.remove(garmentId) else it[garmentId] = decision
+            if (next == current.savedResolution(garmentId)) it.remove(garmentId) else it[garmentId] = next
         }
+    }
+
+    /** Picks Out / Returned / Lost for a whole article (all its units on this ticket). */
+    fun setDecision(garmentId: Long, decision: ItemDecision) {
+        val q = state.value.quantityFor(garmentId)
+        put(
+            garmentId,
+            when (decision) {
+                ItemDecision.PENDING -> Resolution(0, 0)
+                ItemDecision.RETURNED -> Resolution(q, 0)
+                ItemDecision.LOST -> Resolution(0, q)
+            },
+        )
+    }
+
+    /** Sets how many units of a multi-unit article are back; the lost count is kept if it still fits. */
+    fun setReturnedUnits(garmentId: Long, returned: Int) {
+        val cur = state.value.resolutionFor(garmentId)
+        put(garmentId, cur.copy(returned = returned))
+    }
+
+    fun setLostUnits(garmentId: Long, lost: Int) {
+        val cur = state.value.resolutionFor(garmentId)
+        put(garmentId, cur.copy(lost = lost))
     }
 
     private var busy = false
@@ -117,12 +173,7 @@ class TicketDetailViewModel(
         val closesTicket = current.allAccountedFor
         viewModelScope.launch {
             if (picked.isNotEmpty()) {
-                repository.resolveTicket(
-                    ticketId = ticketId,
-                    returnedItemIds = picked.filterValues { it == ItemDecision.RETURNED }.keys,
-                    lostItemIds = picked.filterValues { it == ItemDecision.LOST }.keys,
-                    resetItemIds = picked.filterValues { it == ItemDecision.PENDING }.keys,
-                )
+                repository.resolveTicket(ticketId, picked)
                 edits.value = emptyMap()
             }
             if (closesTicket) {
@@ -165,7 +216,7 @@ class TicketDetailViewModel(
      */
     suspend fun writeTicketPdf(output: java.io.OutputStream) {
         val ticket = repository.getTicket(ticketId) ?: return
-        val garments = state.value.garments
+        val garments = repository.garmentsForPrint(ticketId)
         if (garments.isEmpty()) return
         printDispatcher.writeTicketPdf(ticket, garments, output)
     }
@@ -178,7 +229,7 @@ class TicketDetailViewModel(
         viewModelScope.launch {
             isPrinting.value = true
             val ticket = repository.getTicket(ticketId)
-            val garments = state.value.garments
+            val garments = repository.garmentsForPrint(ticketId)
             if (ticket == null || garments.isEmpty()) {
                 _events.emit(TicketDetailEvent.Message("Nothing to print yet"))
                 isPrinting.value = false
@@ -197,7 +248,7 @@ class TicketDetailViewModel(
 
     private suspend fun renderCurrentLabel(): Bitmap? {
         val ticket = repository.getTicket(ticketId)
-        val garments = state.value.garments
+        val garments = repository.garmentsForPrint(ticketId)
         if (ticket == null || garments.isEmpty()) {
             _events.emit(TicketDetailEvent.Message("Nothing to print yet"))
             return null

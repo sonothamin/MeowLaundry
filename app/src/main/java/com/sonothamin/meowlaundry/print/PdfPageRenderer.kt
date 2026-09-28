@@ -139,7 +139,7 @@ object PdfPageRenderer {
                     marginH = marginH,
                     marginV = marginV,
                     ticket = plan.ticket,
-                    allGarmentsCount = plan.garments.size,
+                    allGarmentsCount = plan.garments.sumOf { it.quantity },
                     pageGarments = plan.garments.subList(offset, offset + count),
                     startIndex = offset,
                     isFirstPageOfTicket = chunkIndex == 0,
@@ -256,7 +256,7 @@ object PdfPageRenderer {
             )
 
             val namePaint = p(12.5f)
-            canvas.drawText(garment.title, marginH + 34f, centerY + 4f, namePaint)
+            canvas.drawText(if (garment.quantity > 1) "${garment.title}  \u00d7${garment.quantity}" else garment.title, marginH + 34f, centerY + 4f, namePaint)
 
             if (customization.showGarmentType) {
                 val typeLabel = garment.type.name.lowercase().replaceFirstChar { it.uppercase() }

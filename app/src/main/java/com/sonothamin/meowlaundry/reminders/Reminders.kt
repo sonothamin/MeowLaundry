@@ -83,7 +83,7 @@ object Reminders {
             val info = DueDates.info(ticket, today) ?: return@forEach
             if (info.state == DueState.LATER) return@forEach
             if (info.state == DueState.SOON && info.daysUntil > 1) return@forEach // only "tomorrow"
-            val stillOut = app.repository.getItemsForTicket(ticket.id).count { !it.returned && !it.lost }
+            val stillOut = app.repository.getItemsForTicket(ticket.id).sumOf { it.pendingQuantity }
             val title = when (info.state) {
                 DueState.OVERDUE -> "Ticket #${ticket.id} is overdue"
                 DueState.TODAY -> "Ticket #${ticket.id} is due back today"

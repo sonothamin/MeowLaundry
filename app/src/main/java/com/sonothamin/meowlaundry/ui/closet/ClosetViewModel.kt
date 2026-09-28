@@ -61,6 +61,8 @@ class ClosetViewModel(
                     repository.observeClothingByStatus(ClothingStatus.LOST),
                     repository.observeArchivedByReason(ArchiveReason.LOST),
                 ) { legacy, archived -> legacy + archived }
+                // A multi-unit article with some units out counts as "at laundry" too, even though the rest are home.
+                ClothingStatus.AT_LAUNDRY -> repository.observeAtLaundry()
                 else -> repository.observeClothingByStatus(status)
             }
         }

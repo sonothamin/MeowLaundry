@@ -50,7 +50,15 @@ fun buildActivity(item: ClothingItem, events: List<ItemCareEvent>): List<Activit
     val entries = mutableListOf<ActivityEntry>()
 
     events.forEach { e ->
-        val extras = listOfNotNull(e.providerName?.takeIf { it.isNotBlank() }, "Ticket #${e.ticketId}")
+        // For several identical units: how many went, and how many of them are back or lost.
+        val unitNote = if (e.quantity > 1) {
+            listOfNotNull(
+                "\u00d7${e.quantity} sent",
+                if (e.returnedQuantity > 0) "${e.returnedQuantity} back" else null,
+                if (e.lostQuantity > 0) "${e.lostQuantity} lost" else null,
+            ).joinToString(" \u00b7 ")
+        } else null
+        val extras = listOfNotNull(unitNote, e.providerName?.takeIf { it.isNotBlank() }, "Ticket #${e.ticketId}")
         val entry = when {
             e.lost -> ActivityEntry(
                 at = e.sentAt,

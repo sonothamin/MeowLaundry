@@ -59,7 +59,7 @@ object LabelRenderer {
         data class GarmentLines(val nameLines: List<String>, val typeLine: String?)
         val garmentLines = garments.map { garment ->
             GarmentLines(
-                nameLines = wrapText(garment.title, namePaint, usableWidth - indexColumnWidth),
+                nameLines = wrapText(if (garment.quantity > 1) "${garment.title} \u00d7${garment.quantity}" else garment.title, namePaint, usableWidth - indexColumnWidth),
                 typeLine = if (customization.showGarmentType) {
                     garment.type.name.lowercase().replaceFirstChar { it.uppercase() }
                 } else {
@@ -104,7 +104,7 @@ object LabelRenderer {
         }
         cursorY += 34
         canvas.drawText(
-            "${garments.size} garment${if (garments.size == 1) "" else "s"} \u00b7 Check each one on return",
+            "${garments.sumOf { it.quantity }} garment${if (garments.sumOf { it.quantity } == 1) "" else "s"} \u00b7 Check each one on return",
             margin.toFloat(),
             cursorY.toFloat(),
             footerPaint,

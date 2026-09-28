@@ -4,6 +4,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 
+/** How many units of an article on one ticket are back and how many are lost; the rest are still out. */
+data class Resolution(val returned: Int, val lost: Int)
+
 /**
  * Single entry point the ViewModels talk to. Keeps Room, photo files and the two related
  * tables (closet + laundry tickets) consistent with each other.
@@ -21,6 +24,9 @@ class ClosetRepository(
     fun observeClothingByStatus(status: ClothingStatus): Flow<List<ClothingItem>> =
         clothingDao.observeByStatus(status)
 
+    /** Articles with at least one unit out at the laundry (including part-sent multi-unit ones). */
+    fun observeAtLaundry(): Flow<List<ClothingItem>> = clothingDao.observeAtLaundry()
+
     fun observeClothingById(id: Long): Flow<ClothingItem?> = clothingDao.observeById(id)
 
     suspend fun getClothingById(id: Long): ClothingItem? = clothingDao.getById(id)
@@ -34,9 +40,10 @@ class ClosetRepository(
         val lostValues: List<CurrencyAmount>,
     )
 
+    /** Counts are units, not articles: 7 boxers in the closet count as 7. */
     fun observeSummary(): Flow<ClosetSummary> = combine(
-        clothingDao.observeCountByStatus(ClothingStatus.IN_CLOSET),
-        clothingDao.observeCountByStatus(ClothingStatus.AT_LAUNDRY),
+        clothingDao.observeInClosetUnits(),
+        clothingDao.observeAtLaundryUnits(),
         clothingDao.observeLostCount(),
         clothingDao.observeLostValueByCurrency(),
     ) { inCloset, atLaundry, lost, lostValues ->
@@ -54,10 +61,21 @@ class ClosetRepository(
      */
     suspend fun saveClothing(item: ClothingItem): Long =
         if (item.id != 0L) {
-            clothingDao.update(item)
+            // The cached lost/out counts belong to the ticket rows, not to the edit form, so they
+            // are re-read here rather than trusted from the (possibly stale) item being saved.
+            val current = clothingDao.getById(item.id)
+            val floor = ((current?.lostQuantity ?: 0) + (current?.atLaundryQuantity ?: 0)).coerceAtLeast(1)
+            clothingDao.update(
+                item.copy(
+                    quantity = item.quantity.coerceAtLeast(floor),
+                    atLaundryQuantity = current?.atLaundryQuantity ?: 0,
+                    lostQuantity = current?.lostQuantity ?: 0,
+                )
+            )
+            recomputeCounts(item.id)
             item.id
         } else {
-            clothingDao.upsert(item)
+            clothingDao.upsert(item.copy(quantity = item.quantity.coerceAtLeast(1), atLaundryQuantity = 0, lostQuantity = 0))
         }
 
     suspend fun deleteClothing(item: ClothingItem) {
@@ -150,6 +168,15 @@ class ClosetRepository(
     fun observeGarmentsForTicket(ticketId: Long): Flow<List<ClothingItem>> =
         laundryDao.observeGarmentsForTicket(ticketId)
 
+    /**
+     * The garments on a ticket for printing, with each one's [ClothingItem.quantity] replaced by
+     * the number of units on THIS ticket - so a label can say "Boxers x5" instead of the total owned.
+     */
+    suspend fun garmentsForPrint(ticketId: Long): List<ClothingItem> {
+        val units = laundryDao.getItemsForTicket(ticketId).associate { it.clothingItemId to it.quantity }
+        return laundryDao.observeGarmentsForTicket(ticketId).first().map { it.copy(quantity = units[it.id] ?: 1) }
+    }
+
     fun observeHistoryForItem(clothingItemId: Long): Flow<List<LaundryTicketItem>> =
         laundryDao.observeHistoryForItem(clothingItemId)
 
@@ -173,92 +200,180 @@ class ClosetRepository(
     suspend fun getGarmentsForIds(ids: List<Long>): List<ClothingItem> =
         ids.mapNotNull { clothingDao.getById(it) }
 
-    /** Sends a batch of garments to the laundry: creates the ticket and marks garments AT_LAUNDRY. */
-    suspend fun sendToLaundry(ticket: LaundryTicket, clothingItemIds: List<Long>): Long =
-        laundryDao.createTicketWithItems(ticket, clothingItemIds, clothingDao)
+    /**
+     * Sends articles to the laundry: creates the ticket with one row per article and marks the
+     * units out. Each entry's quantity is clamped to what is actually in the closet.
+     */
+    suspend fun sendToLaundry(ticket: LaundryTicket, entries: List<TicketEntry>): Long {
+        val items = clothingDao.getByIds(entries.map { it.clothingItemId }).associateBy { it.id }
+        val clamped = entries.mapNotNull { e ->
+            val item = items[e.clothingItemId] ?: return@mapNotNull null
+            val q = e.quantity.coerceIn(1, item.inClosetQuantity.coerceAtLeast(1))
+            TicketEntry(e.clothingItemId, q)
+        }
+        val ticketId = laundryDao.createTicketWithItems(ticket, clamped)
+        clamped.map { it.clothingItemId }.distinct().forEach { recomputeCounts(it) }
+        return ticketId
+    }
 
-    /** Adds more garments to a ticket that's already been sent, e.g. fixing a mistake in Edit ticket. */
-    suspend fun addGarmentsToTicket(ticketId: Long, clothingItemIds: List<Long>) {
-        if (clothingItemIds.isEmpty()) return
-        val items = clothingItemIds.map { LaundryTicketItem(ticketId = ticketId, clothingItemId = it) }
-        laundryDao.insertTicketItems(items)
-        clothingDao.setStatusForAll(clothingItemIds, ClothingStatus.AT_LAUNDRY)
+    /** Convenience for single-unit callers. */
+    suspend fun sendToLaundry(ticket: LaundryTicket, clothingItemIds: List<Long>): Long =
+        sendToLaundry(ticket, clothingItemIds.map { TicketEntry(it, 1) })
+
+    /**
+     * Adds more articles to a ticket that's already been sent, e.g. fixing a mistake in Edit ticket.
+     * An article already on the ticket just gets more units on its existing row.
+     */
+    suspend fun addGarmentsToTicket(ticketId: Long, entries: List<TicketEntry>) {
+        if (entries.isEmpty()) return
+        val existing = laundryDao.getItemsForTicket(ticketId).associateBy { it.clothingItemId }
+        val items = clothingDao.getByIds(entries.map { it.clothingItemId }).associateBy { it.id }
+        val toInsert = mutableListOf<LaundryTicketItem>()
+        val toUpdate = mutableListOf<LaundryTicketItem>()
+        entries.forEach { e ->
+            val item = items[e.clothingItemId] ?: return@forEach
+            val q = e.quantity.coerceIn(1, item.inClosetQuantity.coerceAtLeast(1))
+            val row = existing[e.clothingItemId]
+            if (row != null) toUpdate += withFlags(row.copy(quantity = row.quantity + q))
+            else toInsert += LaundryTicketItem(ticketId = ticketId, clothingItemId = e.clothingItemId, quantity = q)
+        }
+        if (toInsert.isNotEmpty()) laundryDao.insertTicketItems(toInsert)
+        if (toUpdate.isNotEmpty()) laundryDao.updateTicketItems(toUpdate)
+        entries.map { it.clothingItemId }.distinct().forEach { recomputeCounts(it) }
+        refreshTicketStatus(ticketId)
+    }
+
+    suspend fun addGarmentsToTicket(ticketId: Long, clothingItemIds: List<Long>) =
+        addGarmentsToTicket(ticketId, clothingItemIds.map { TicketEntry(it, 1) })
+
+    /**
+     * Changes how many units of an article are on a ticket. Never below what has already been
+     * accounted for (returned or lost) and never more than the closet can supply.
+     */
+    suspend fun setTicketItemQuantity(ticketId: Long, clothingItemId: Long, quantity: Int) {
+        val row = laundryDao.getItemsForTicket(ticketId).firstOrNull { it.clothingItemId == clothingItemId } ?: return
+        val item = clothingDao.getById(clothingItemId) ?: return
+        val floor = (row.returnedQuantity + row.lostQuantity).coerceAtLeast(1)
+        val ceiling = row.quantity + item.inClosetQuantity
+        val q = quantity.coerceIn(floor, ceiling.coerceAtLeast(floor))
+        if (q == row.quantity) return
+        laundryDao.updateTicketItem(withFlags(row.copy(quantity = q)))
+        recomputeCounts(clothingItemId)
+        refreshTicketStatus(ticketId)
     }
 
     /**
-     * Takes a garment off a ticket, e.g. it was added by mistake. A garment whose return/lost
-     * decision was already recorded on this ticket keeps that status; only a still-pending
-     * garment goes back to IN_CLOSET.
+     * Takes an article off a ticket, e.g. it was added by mistake. Units already returned or lost
+     * on this ticket stay recorded, so only a row with nothing accounted for is removed outright.
      */
     suspend fun removeGarmentFromTicket(ticketId: Long, clothingItemId: Long) {
-        val item = laundryDao.getItemsForTicket(ticketId).firstOrNull { it.clothingItemId == clothingItemId }
-            ?: return
+        val row = laundryDao.getItemsForTicket(ticketId).firstOrNull { it.clothingItemId == clothingItemId } ?: return
+        if (row.returnedQuantity + row.lostQuantity > 0) return
         laundryDao.deleteTicketItem(ticketId, clothingItemId)
-        if (!item.returned && !item.lost) {
-            clothingDao.setStatus(clothingItemId, ClothingStatus.IN_CLOSET)
-        }
+        recomputeCounts(clothingItemId)
+        refreshTicketStatus(ticketId)
     }
 
     /**
-     * Records the laundry's answer for a ticket: each garment is either returned (back to
-     * IN_CLOSET) or lost (flagged LOST, so its price counts toward the "lost value" total).
+     * Records the laundry's answer for a ticket. [resolutions] maps an article to how many of its
+     * units on this ticket are now back and how many are lost (absolute, not a delta); the rest
+     * are still out. (0, 0) undoes an earlier decision. Fully lost articles go to the Archive,
+     * filed under "Lost", and come back out of it if the loss is undone.
      */
+    suspend fun resolveTicket(ticketId: Long, resolutions: Map<Long, Resolution>) {
+        val now = System.currentTimeMillis()
+        val rows = laundryDao.getItemsForTicket(ticketId)
+        val updated = rows.map { row ->
+            val r = resolutions[row.clothingItemId] ?: return@map row
+            val returned = r.returned.coerceIn(0, row.quantity)
+            val lost = r.lost.coerceIn(0, row.quantity - returned)
+            val wasBack = row.returnedQuantity
+            withFlags(
+                row.copy(
+                    returnedQuantity = returned,
+                    lostQuantity = lost,
+                    returnedAt = if (returned > 0) (if (wasBack == returned) row.returnedAt ?: now else now) else null,
+                )
+            )
+        }
+        laundryDao.updateTicketItems(updated)
+        resolutions.keys.forEach { recomputeCounts(it, now, "Lost at the laundry (ticket #$ticketId)") }
+        refreshTicketStatus(ticketId, now)
+    }
+
+    /** Backwards-compatible single-unit form used where quantities don't matter. */
     suspend fun resolveTicket(
         ticketId: Long,
         returnedItemIds: Set<Long>,
         lostItemIds: Set<Long>,
-        /** Garments to put back to "still out at the laundry" - this is how a saved decision is undone. */
         resetItemIds: Set<Long> = emptySet(),
     ) {
-        val items = laundryDao.getItemsForTicket(ticketId)
-        val now = System.currentTimeMillis()
-        val updated = items.map { item ->
-            when (item.clothingItemId) {
-                in returnedItemIds -> item.copy(returned = true, lost = false, returnedAt = now)
-                in lostItemIds -> item.copy(returned = false, lost = true, returnedAt = null)
-                in resetItemIds -> item.copy(returned = false, lost = false, returnedAt = null)
-                else -> item
-            }
-        }
-        laundryDao.updateTicketItems(updated)
+        val rows = laundryDao.getItemsForTicket(ticketId).associateBy { it.clothingItemId }
+        val map = mutableMapOf<Long, Resolution>()
+        returnedItemIds.forEach { id -> rows[id]?.let { map[id] = Resolution(it.quantity, 0) } }
+        lostItemIds.forEach { id -> rows[id]?.let { map[id] = Resolution(0, it.quantity) } }
+        resetItemIds.forEach { id -> if (rows.containsKey(id)) map[id] = Resolution(0, 0) }
+        resolveTicket(ticketId, map)
+    }
 
-        returnedItemIds.forEach { putBack(it, ClothingStatus.IN_CLOSET, now) }
-        // A lost garment goes to the Archive, filed under "Lost".
-        lostItemIds.forEach {
-            clothingDao.archive(it, ArchiveReason.LOST, "Lost at the laundry (ticket #$ticketId)", now)
-        }
-        resetItemIds.forEach { putBack(it, ClothingStatus.AT_LAUNDRY, now) }
-
-        val allAccountedFor = updated.all { it.returned || it.lost }
+    /** Recomputes a ticket's status from its rows (all accounted for -> RECEIVED, some -> PARTIALLY_RECEIVED). */
+    private suspend fun refreshTicketStatus(ticketId: Long, now: Long = System.currentTimeMillis()) {
+        val ticket = laundryDao.getTicket(ticketId) ?: return
+        if (ticket.status == TicketStatus.CLOSED) return
+        val rows = laundryDao.getItemsForTicket(ticketId)
         val newStatus = when {
-            allAccountedFor -> TicketStatus.RECEIVED
-            updated.any { it.returned || it.lost } -> TicketStatus.PARTIALLY_RECEIVED
+            rows.isNotEmpty() && rows.all { it.isResolved } -> TicketStatus.RECEIVED
+            rows.any { it.returnedQuantity + it.lostQuantity > 0 } -> TicketStatus.PARTIALLY_RECEIVED
             else -> TicketStatus.SENT
         }
-        val ticket = laundryDao.getTicket(ticketId) ?: return
         laundryDao.updateTicket(
-            ticket.copy(
-                status = newStatus,
-                receivedAt = if (newStatus == TicketStatus.RECEIVED) now else null,
-            )
+            ticket.copy(status = newStatus, receivedAt = if (newStatus == TicketStatus.RECEIVED) now else null)
         )
+    }
+
+    /** Keeps the legacy returned/lost flags in step with the quantities: true only once a row is fully accounted for. */
+    private fun withFlags(row: LaundryTicketItem): LaundryTicketItem {
+        val resolved = row.isResolved
+        return row.copy(
+            returned = resolved && row.returnedQuantity > 0,
+            lost = resolved && row.lostQuantity > 0,
+        )
+    }
+
+    /**
+     * Recomputes an article's cached out/lost counts from its ticket rows - the rows are the
+     * single source of truth - and settles its status: every unit lost -> archived as Lost; a
+     * loss that was undone -> back out of the archive; otherwise AT_LAUNDRY only when no unit is
+     * left in the closet. An article the person archived themselves is left alone.
+     */
+    suspend fun recomputeCounts(itemId: Long, now: Long = System.currentTimeMillis(), lostNote: String? = null) {
+        val item = clothingDao.getById(itemId) ?: return
+        val rows = laundryDao.getItemsForClothing(itemId)
+        val lost = rows.sumOf { it.lostQuantity }
+        val out = rows.sumOf { it.pendingQuantity }
+        clothingDao.setCounts(itemId, out, lost)
+        val owned = (item.quantity - lost).coerceAtLeast(0)
+        val archivedAsLost = item.status == ClothingStatus.ARCHIVED && item.archiveReason == ArchiveReason.LOST
+        when {
+            owned == 0 && lost > 0 -> if (item.status != ClothingStatus.ARCHIVED) {
+                clothingDao.archive(itemId, ArchiveReason.LOST, lostNote ?: "Lost at the laundry", now)
+            }
+            archivedAsLost && owned > 0 -> {
+                clothingDao.unarchive(itemId, now)
+                clothingDao.setStatus(itemId, if (out > 0 && out >= owned) ClothingStatus.AT_LAUNDRY else ClothingStatus.IN_CLOSET, now)
+            }
+            item.status == ClothingStatus.ARCHIVED -> Unit
+            else -> clothingDao.setStatus(
+                itemId,
+                if (out > 0 && out >= owned) ClothingStatus.AT_LAUNDRY else ClothingStatus.IN_CLOSET,
+                now,
+            )
+        }
     }
 
     suspend fun closeTicket(ticketId: Long) {
         val ticket = laundryDao.getTicket(ticketId) ?: return
         laundryDao.updateTicket(ticket.copy(status = TicketStatus.CLOSED))
-    }
-
-    /**
-     * Sets a garment's status after a laundry decision. If an earlier decision had archived it as
-     * lost, it comes back out of the archive first, so undoing "lost" really restores it.
-     */
-    private suspend fun putBack(id: Long, status: ClothingStatus, now: Long) {
-        val item = clothingDao.getById(id)
-        if (item?.status == ClothingStatus.ARCHIVED && item.archiveReason == ArchiveReason.LOST) {
-            clothingDao.unarchive(id, now)
-        }
-        clothingDao.setStatus(id, status, now)
     }
 
     /** Files garments marked lost under the old scheme into the archive. Safe to run repeatedly. */
@@ -272,20 +387,40 @@ class ClosetRepository(
         val ticket = laundryDao.getTicket(ticketId) ?: return
         if (ticket.status != TicketStatus.CLOSED) return
         val items = laundryDao.getItemsForTicket(ticketId)
-        val decided = items.count { it.returned || it.lost }
         val status = when {
-            decided == items.size -> TicketStatus.RECEIVED
-            decided > 0 -> TicketStatus.PARTIALLY_RECEIVED
+            items.all { it.isResolved } -> TicketStatus.RECEIVED
+            items.any { it.returnedQuantity + it.lostQuantity > 0 } -> TicketStatus.PARTIALLY_RECEIVED
             else -> TicketStatus.SENT
         }
         laundryDao.updateTicket(ticket.copy(status = status))
     }
 
-    suspend fun deleteTicket(ticket: LaundryTicket) = laundryDao.deleteTicket(ticket)
+    suspend fun deleteTicket(ticket: LaundryTicket) {
+        val rows = laundryDao.getItemsForTicket(ticket.id)
+        laundryDao.deleteTicket(ticket)
+        settleAfterDelete(rows)
+    }
 
     suspend fun deleteTicketsByIds(ids: List<Long>) {
         if (ids.isEmpty()) return
+        val rows = ids.flatMap { laundryDao.getItemsForTicket(it) }
         laundryDao.deleteTicketsByIds(ids)
+        settleAfterDelete(rows)
+    }
+
+    /**
+     * Once a ticket's rows are gone, so is the only record of units it lost. Those units are gone
+     * from the closet for good, so they are taken off the article's quantity now - otherwise the
+     * next recount would quietly "find" them again.
+     */
+    private suspend fun settleAfterDelete(rows: List<LaundryTicketItem>) {
+        rows.filter { it.lostQuantity > 0 }.groupBy { it.clothingItemId }.forEach { (id, lostRows) ->
+            val item = clothingDao.getById(id) ?: return@forEach
+            if (item.status != ClothingStatus.ARCHIVED) {
+                clothingDao.setQuantity(id, (item.quantity - lostRows.sumOf { it.lostQuantity }).coerceAtLeast(1))
+            }
+        }
+        rows.map { it.clothingItemId }.distinct().forEach { recomputeCounts(it) }
     }
 
     suspend fun getTicketsByIds(ids: List<Long>): List<LaundryTicket> = laundryDao.getTicketsByIds(ids)
@@ -294,11 +429,21 @@ class ClosetRepository(
     suspend fun getRecentProviderNames(): List<String> = laundryDao.getDistinctProviderNames()
 
     /** Deletes only the CLOSED tickets among [ids]; returns how many were removed. */
-    suspend fun deleteClosedTicketsByIds(ids: List<Long>): Int =
-        if (ids.isEmpty()) 0 else laundryDao.deleteClosedTicketsAmong(ids)
+    suspend fun deleteClosedTicketsByIds(ids: List<Long>): Int {
+        if (ids.isEmpty()) return 0
+        val rows = laundryDao.getClosedTicketIdsAmong(ids).flatMap { laundryDao.getItemsForTicket(it) }
+        val removed = laundryDao.deleteClosedTicketsAmong(ids)
+        settleAfterDelete(rows)
+        return removed
+    }
 
     /** "Clear history": removes every CLOSED ticket and leaves open ones untouched. */
-    suspend fun clearClosedTickets(): Int = laundryDao.deleteAllClosedTickets()
+    suspend fun clearClosedTickets(): Int {
+        val rows = laundryDao.getClosedTicketIds().flatMap { laundryDao.getItemsForTicket(it) }
+        val removed = laundryDao.deleteAllClosedTickets()
+        settleAfterDelete(rows)
+        return removed
+    }
 
     /** Deletes every ticket, open or closed. Only for wiping data (e.g. restore); not "clear history". */
     suspend fun clearAllTickets() {
@@ -333,6 +478,7 @@ class ClosetRepository(
                     color = it.color,
                     currency = it.currency,
                     isWinterWear = it.isWinterWear,
+                    quantity = it.quantity,
                     photos = photosByItem[it.id].orEmpty().map { photo ->
                         BackupPhoto(path = photo.path, isPrimary = photo.isPrimary, sortOrder = photo.sortOrder)
                     },
@@ -358,6 +504,9 @@ class ClosetRepository(
                     returned = it.returned,
                     lost = it.lost,
                     returnedAt = it.returnedAt,
+                    quantity = it.quantity,
+                    returnedQuantity = it.returnedQuantity,
+                    lostQuantity = it.lostQuantity,
                 )
             },
         )
@@ -389,6 +538,7 @@ class ClosetRepository(
                     color = it.color,
                     currency = it.currency,
                     isWinterWear = it.isWinterWear,
+                    quantity = it.quantity.coerceAtLeast(1),
                 )
             }
         )
@@ -422,16 +572,25 @@ class ClosetRepository(
         )
         laundryDao.upsertTicketItems(
             payload.ticketItems.map {
-                LaundryTicketItem(
-                    id = it.id,
-                    ticketId = it.ticketId,
-                    clothingItemId = it.clothingItemId,
-                    returned = it.returned,
-                    lost = it.lost,
-                    returnedAt = it.returnedAt,
+                // Older backups have no quantities: one unit, back or lost according to the flags.
+                val q = it.quantity.coerceAtLeast(1)
+                val returnedQ = (it.returnedQuantity ?: if (it.returned) q else 0).coerceIn(0, q)
+                val lostQ = (it.lostQuantity ?: if (it.lost) q else 0).coerceIn(0, q - returnedQ)
+                withFlags(
+                    LaundryTicketItem(
+                        id = it.id,
+                        ticketId = it.ticketId,
+                        clothingItemId = it.clothingItemId,
+                        returnedAt = it.returnedAt,
+                        quantity = q,
+                        returnedQuantity = returnedQ,
+                        lostQuantity = lostQ,
+                    )
                 )
             }
         )
+        // The article counts are caches of the ticket rows, so rebuild them for everything imported.
+        payload.clothingItems.forEach { recomputeCounts(it.id) }
         clothingDao.archiveLegacyLost()
     }
 
