@@ -11,7 +11,6 @@ sealed class Destination(val route: String) {
     data object SettingsPrint : Destination("settings/print")
     data object SettingsReminders : Destination("settings/reminders")
     data object SettingsAppearance : Destination("settings/appearance")
-    data object SettingsCloset : Destination("settings/closet")
     data object SettingsCurrency : Destination("settings/currency")
     data object SettingsBackup : Destination("settings/backup")
     data object SettingsAbout : Destination("settings/about")

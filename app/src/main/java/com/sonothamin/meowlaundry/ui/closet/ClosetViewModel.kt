@@ -103,6 +103,10 @@ class ClosetViewModel(
         viewModelScope.launch { appPreferences.setClosetViewMode(mode) }
     }
 
+    fun setShowWinterWear(show: Boolean) {
+        viewModelScope.launch { appPreferences.setShowWinterWear(show) }
+    }
+
     fun toggleViewMode() {
         setViewMode(if (viewMode.value == ClosetViewMode.GRID) ClosetViewMode.LIST else ClosetViewMode.GRID)
     }

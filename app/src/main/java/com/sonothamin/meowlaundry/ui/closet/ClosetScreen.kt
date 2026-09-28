@@ -42,7 +42,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -88,6 +90,7 @@ fun ClosetScreen(
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
+    val showWinterWear by viewModel.showWinterWear.collectAsStateWithLifecycle()
     val searchActive by viewModel.searchActive.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val sortOption by viewModel.sortOption.collectAsStateWithLifecycle()
@@ -181,6 +184,17 @@ fun ClosetScreen(
                         actions = {
                             IconButton(onClick = { viewModel.setSearchActive(true) }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search")
+                            }
+                            // Winter wear visibility lives here (was buried in Settings): highlighted
+                            // while snowflake garments are shown, plain when they're hidden.
+                            IconToggleButton(
+                                checked = showWinterWear,
+                                onCheckedChange = viewModel::setShowWinterWear,
+                            ) {
+                                Icon(
+                                    Icons.Default.AcUnit,
+                                    contentDescription = if (showWinterWear) "Hide winter wear" else "Show winter wear",
+                                )
                             }
                             IconButton(onClick = viewModel::toggleViewMode) {
                                 Icon(
