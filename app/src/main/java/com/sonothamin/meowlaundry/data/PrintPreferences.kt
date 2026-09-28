@@ -26,13 +26,10 @@ enum class TicketFormat {
     /** An open continuous strip with dashed tear lines, like a real receipt roll. */
     RECEIPT,
 
-    /** A bordered, self-contained card - suited to a sheet-fed printer via the system dialog. */
-    RECTANGULAR,
-
     /**
      * A real text document sized for standard paper (see [PageSize]) - drawn with actual text
      * (selectable/searchable in the resulting PDF), not a rasterized bitmap image like the
-     * other two formats. Meant for printing via the system dialog or sharing/saving as a PDF.
+     * receipt format. Meant for printing via the system dialog or sharing/saving as a PDF.
      */
     PAGE,
 }
@@ -91,7 +88,7 @@ data class LabelCustomization(
     val footerText: String = "Please keep this ticket until pickup",
     /** Whether each garment's category (Top, Bottom...) prints as a line under its name. */
     val showGarmentType: Boolean = true,
-    /** Receipt strip or bordered rectangular card - see [TicketFormat]. */
+    /** Receipt strip or full-page document - see [TicketFormat]. */
     val format: TicketFormat = TicketFormat.RECEIPT,
     /** ARGB color of the masthead band on a [TicketFormat.PAGE] document. Ignored otherwise. */
     val headerColor: Int = DEFAULT_HEADER_COLOR,

@@ -343,7 +343,7 @@ fun TicketDetailScreen(
 }
 
 /**
- * Shows the rendered ticket the way it'll actually come out. A receipt or rectangular card is
+ * Shows the rendered ticket the way it'll actually come out. A receipt strip is
  * shown the way it'll print - a small strip/card on its own white surface with a soft shadow -
  * and exports as a PNG. The [TicketFormat.PAGE] format is treated as what it actually is, a
  * document: a plain white page (page-proportioned, not squeezed to a small strip), described as

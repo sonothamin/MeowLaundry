@@ -262,7 +262,6 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             Text(
                 when (ticketFormat) {
                     TicketFormat.RECEIPT -> "An open continuous strip with dashed tear lines, like a thermal receipt."
-                    TicketFormat.RECTANGULAR -> "A bordered, self-contained card - a good fit for a sheet-fed printer via System."
                     TicketFormat.PAGE -> "A real text document on standard paper - selectable text, not a bitmap image. " +
                         "Always opens Android's own print dialog, which also offers \u201cSave as PDF\u201d."
                 },

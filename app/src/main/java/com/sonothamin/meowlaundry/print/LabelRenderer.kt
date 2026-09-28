@@ -41,10 +41,7 @@ object LabelRenderer {
         garments: List<ClothingItem>,
         customization: LabelCustomization = LabelCustomization(),
     ): Bitmap {
-        val rectangular = customization.format == TicketFormat.RECTANGULAR
-        // Rectangular gets a slightly deeper margin so the border drawn around it afterwards
-        // doesn't crowd the content.
-        val margin = if (rectangular) MARGIN + 12 else MARGIN
+        val margin = MARGIN
 
         val family = customization.font.typefaceFamily
         val titlePaint = textPaint(size = 30f, bold = true, align = Paint.Align.CENTER, fontFamily = family)
@@ -96,7 +93,7 @@ object LabelRenderer {
             metaPaint,
         )
         cursorY += 24
-        cursorY = canvas.drawRule(cursorY, margin, dashed = !rectangular)
+        cursorY = canvas.drawRule(cursorY, margin, dashed = true)
 
         canvas.drawText(serviceLabel(ticket.serviceType), margin.toFloat(), cursorY.toFloat(), servicePaint)
         ticket.providerName?.takeIf { it.isNotBlank() }?.let { provider ->
@@ -113,7 +110,7 @@ object LabelRenderer {
             footerPaint,
         )
         cursorY += 22
-        cursorY = canvas.drawRule(cursorY, margin, dashed = !rectangular)
+        cursorY = canvas.drawRule(cursorY, margin, dashed = true)
 
         garmentLines.forEachIndexed { index, g ->
             val rowTop = cursorY
@@ -127,22 +124,12 @@ object LabelRenderer {
             cursorY = lineY + (if (g.typeLine != null) 24 else 6) + 10
         }
 
-        cursorY = canvas.drawRule(cursorY - 10 + 6, margin, dashed = !rectangular)
+        cursorY = canvas.drawRule(cursorY - 10 + 6, margin, dashed = true)
         canvas.drawCenteredText(
             customization.footerText.ifBlank { "Please keep this ticket until pickup" },
             cursorY.toFloat(),
             metaPaint,
         )
-
-        if (rectangular) {
-            val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.rgb(40, 40, 40)
-                style = Paint.Style.STROKE
-                strokeWidth = 4f
-            }
-            val inset = 6f
-            canvas.drawRoundRect(inset, inset, WIDTH - inset, height - inset, 16f, 16f, borderPaint)
-        }
 
         return bitmap
     }
