@@ -219,8 +219,12 @@ class ClosetRepository(
         return ticketId
     }
 
-    /** Convenience for single-unit callers. */
-    suspend fun sendToLaundry(ticket: LaundryTicket, clothingItemIds: List<Long>): Long =
+    /**
+     * Convenience for single-unit callers. Named distinctly rather than overloaded: a suspend
+     * fun's `Continuation` parameter means `List<TicketEntry>` and `List<Long>` erase to the
+     * same JVM signature, which the compiler rejects as a platform declaration clash.
+     */
+    suspend fun sendSingleUnitsToLaundry(ticket: LaundryTicket, clothingItemIds: List<Long>): Long =
         sendToLaundry(ticket, clothingItemIds.map { TicketEntry(it, 1) })
 
     /**
@@ -246,7 +250,11 @@ class ClosetRepository(
         refreshTicketStatus(ticketId)
     }
 
-    suspend fun addGarmentsToTicket(ticketId: Long, clothingItemIds: List<Long>) =
+    /**
+     * Convenience for single-unit callers. Named distinctly rather than overloaded, for the same
+     * platform-declaration-clash reason as [sendSingleUnitsToLaundry] above.
+     */
+    suspend fun addSingleUnitsToTicket(ticketId: Long, clothingItemIds: List<Long>) =
         addGarmentsToTicket(ticketId, clothingItemIds.map { TicketEntry(it, 1) })
 
     /**

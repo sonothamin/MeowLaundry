@@ -115,7 +115,7 @@ class EditTicketViewModel(
     /** Adds one closet garment to the ticket directly - no separate picker, tap it and it's on. */
     fun addGarment(clothingItemId: Long) {
         viewModelScope.launch {
-            repository.addGarmentsToTicket(ticketId, listOf(clothingItemId))
+            repository.addSingleUnitsToTicket(ticketId, listOf(clothingItemId))
         }
     }
 
