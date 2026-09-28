@@ -63,6 +63,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.ui.components.EmptyState
+import com.sonothamin.meowlaundry.ui.components.EndOfList
+import com.sonothamin.meowlaundry.ui.components.LoadMoreFooter
+import com.sonothamin.meowlaundry.ui.components.LoadMoreOnNearEnd
+import com.sonothamin.meowlaundry.ui.components.TicketListSkeleton
 import com.sonothamin.meowlaundry.data.DueDates
 import com.sonothamin.meowlaundry.data.DueState
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -86,9 +90,10 @@ fun LaundryScreen(
     onMenuClick: (() -> Unit)? = null,
 ) {
     val tickets by viewModel.tickets.collectAsStateWithLifecycle()
-    val filteredOverviews by viewModel.filteredOverviews.collectAsStateWithLifecycle()
+    val paged by viewModel.paged.collectAsStateWithLifecycle()
     val ticketFilter by viewModel.ticketFilter.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    listState.LoadMoreOnNearEnd(enabled = paged.hasMore, onLoadMore = viewModel::loadMore)
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     // The extended FAB collapses to an icon once the list scrolls, out of the way of the cards.
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
@@ -207,24 +212,17 @@ fun LaundryScreen(
                 TicketFilterRow(selected = ticketFilter, onSelect = viewModel::setTicketFilter)
             }
 
-            if (tickets.isEmpty()) {
-                EmptyState(
+            when {
+                paged.isLoading -> TicketListSkeleton()
+                paged.total == 0 -> EmptyState(
                     icon = Icons.Default.LocalLaundryService,
-                    title = "Nothing here yet",
-                    subtitle = "Tap + to send clothes to the wash or press.",
+                    title = if (tickets.isEmpty()) "Nothing here yet"
+                    else if (ticketFilter == TicketFilter.CLOSED) "No history yet" else "Nothing active",
+                    subtitle = if (tickets.isEmpty()) "Tap + to send clothes to the wash or press."
+                    else if (ticketFilter == TicketFilter.CLOSED) "Tickets show up here once they're closed."
+                    else "Nothing is out at the laundry right now.",
                 )
-            } else if (filteredOverviews.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Default.LocalLaundryService,
-                    title = if (ticketFilter == TicketFilter.CLOSED) "No history yet" else "Nothing active",
-                    subtitle = if (ticketFilter == TicketFilter.CLOSED) {
-                        "Tickets show up here once they're closed."
-                    } else {
-                        "Nothing is out at the laundry right now."
-                    },
-                )
-            } else {
-                LazyColumn(
+                else -> LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     // extra bottom room so the FAB never covers the last card
@@ -234,7 +232,7 @@ fun LaundryScreen(
                     if (overdueCount > 0 && !selectionMode && ticketFilter != TicketFilter.CLOSED) {
                         item(key = "overdue-banner") { OverdueBanner(overdueCount) }
                     }
-                    items(filteredOverviews, key = { it.ticket.id }) { overview ->
+                    items(paged.items, key = { it.ticket.id }) { overview ->
                         TicketCard(
                             overview = overview,
                             selected = overview.ticket.id in selectedIds,
@@ -244,6 +242,9 @@ fun LaundryScreen(
                             onLongClick = { viewModel.startSelection(overview.ticket.id) },
                             modifier = Modifier.animateItem(),
                         )
+                    }
+                    item(key = "list-footer") {
+                        if (paged.hasMore) LoadMoreFooter() else EndOfList()
                     }
                 }
             }

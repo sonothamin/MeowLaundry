@@ -21,6 +21,9 @@ class ClosetRepository(
 
     fun observeAllClothing(): Flow<List<ClothingItem>> = clothingDao.observeAll()
 
+    /** Id + photo path only; cheap enough to re-run whenever any garment changes. */
+    fun observeItemThumbs(): Flow<List<ItemThumb>> = clothingDao.observeThumbs()
+
     fun observeClothingByStatus(status: ClothingStatus): Flow<List<ClothingItem>> =
         clothingDao.observeByStatus(status)
 

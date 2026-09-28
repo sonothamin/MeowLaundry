@@ -6,6 +6,8 @@ import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
+import com.sonothamin.meowlaundry.ui.paging.PageWindow
+import com.sonothamin.meowlaundry.ui.paging.PagedList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,25 +27,36 @@ class ArchiveViewModel(
     private val _reasonFilter = MutableStateFlow(initialReasonFilter)
     val reasonFilter: StateFlow<ArchiveReason?> = _reasonFilter
 
-    private val allArchived: StateFlow<List<ClothingItem>> = repository.observeArchived()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val pageWindow = PageWindow()
+
+    // null = not loaded yet (drives the skeleton), as opposed to "nothing archived".
+    private val allArchived: StateFlow<List<ClothingItem>?> = repository.observeArchived()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // A garment can be "lost" two ways: archived with reason LOST, or just marked lost from the
     // closet without ever being formally archived. The Lost filter here means "lost", full stop,
     // so it also pulls in that second group - otherwise the Closet screen's Lost tile would land
     // you on a page that's empty even though it just told you there are lost garments.
-    private val lostNotArchived: StateFlow<List<ClothingItem>> = repository.observeClothingByStatus(ClothingStatus.LOST)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val lostNotArchived: StateFlow<List<ClothingItem>?> = repository.observeClothingByStatus(ClothingStatus.LOST)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val items: StateFlow<List<ClothingItem>> = combine(allArchived, lostNotArchived, _reasonFilter) { archived, lost, reason ->
+    private val matching: StateFlow<List<ClothingItem>?> = combine(allArchived, lostNotArchived, _reasonFilter) { archived, lost, reason ->
+        if (archived == null || lost == null) return@combine null
         when (reason) {
             null -> archived
             ArchiveReason.LOST -> archived.filter { it.archiveReason == reason } + lost
             else -> archived.filter { it.archiveReason == reason }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** What the screen renders: the revealed window plus loading / has-more state. */
+    val paged: StateFlow<PagedList<ClothingItem>> = pageWindow.window(matching)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PagedList())
+
+    fun loadMore() = pageWindow.loadMore()
 
     fun setReasonFilter(reason: ArchiveReason?) {
+        pageWindow.reset()
         _reasonFilter.value = reason
     }
 

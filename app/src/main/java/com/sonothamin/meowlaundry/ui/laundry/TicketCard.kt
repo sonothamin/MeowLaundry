@@ -34,14 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.sonothamin.meowlaundry.data.DueDates
 import com.sonothamin.meowlaundry.data.DueState
 import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.ui.components.DueChip
+import com.sonothamin.meowlaundry.ui.components.ThumbImage
 import com.sonothamin.meowlaundry.ui.components.serviceIcon
 import com.sonothamin.meowlaundry.ui.components.serviceLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -225,10 +224,9 @@ private fun ThumbStack(paths: List<String?>, extra: Int, ringColor: androidx.com
                 contentAlignment = Alignment.Center,
             ) {
                 if (path != null) {
-                    AsyncImage(
-                        model = path,
+                    ThumbImage(
+                        path = path,
                         contentDescription = null,
-                        contentScale = ContentScale.Crop,
                         modifier = Modifier.size(38.dp),
                     )
                 } else {

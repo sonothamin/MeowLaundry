@@ -8,6 +8,8 @@ import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.export.ExportUtils
 import com.sonothamin.meowlaundry.print.PrintDispatcher
 import com.sonothamin.meowlaundry.print.PrintOutcome
+import com.sonothamin.meowlaundry.ui.paging.PageWindow
+import com.sonothamin.meowlaundry.ui.paging.PagedList
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -54,20 +56,26 @@ class LaundryViewModel(
     val tickets: StateFlow<List<LaundryTicket>> = repository.observeAllTickets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val pageWindow = PageWindow()
+
     private val _ticketFilter = MutableStateFlow(TicketFilter.ACTIVE)
     val ticketFilter: StateFlow<TicketFilter> = _ticketFilter
 
     fun setTicketFilter(filter: TicketFilter) {
+        pageWindow.reset()
         _ticketFilter.value = filter
     }
 
-    /** Unfiltered: used for the overdue banner, the "clear history" action and its counts. */
-    val overviews: StateFlow<List<TicketOverview>> = combine(
+    /**
+     * Unfiltered: used for the overdue banner, the "clear history" action and its counts.
+     * Only id+photo is pulled per garment (not the full row) since thumbnails are all this needs.
+     */
+    private val overviews: StateFlow<List<TicketOverview>?> = combine(
         repository.observeAllTickets(),
         repository.observeAllTicketItems(),
-        repository.observeAllClothing(),
-    ) { tickets, items, clothing ->
-        val imageById = clothing.associate { it.id to it.imagePath }
+        repository.observeItemThumbs(),
+    ) { tickets, items, thumbs ->
+        val imageById = thumbs.associate { it.id to it.imagePath }
         val itemsByTicket = items.groupBy { it.ticketId }
         tickets.map { ticket ->
             val its = itemsByTicket[ticket.id].orEmpty()
@@ -80,16 +88,23 @@ class LaundryViewModel(
                 thumbs = its.take(MAX_THUMBS).map { imageById[it.clothingItemId] },
             )
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** What the list actually renders, narrowed by [ticketFilter]. */
-    val filteredOverviews: StateFlow<List<TicketOverview>> = combine(overviews, _ticketFilter) { all, filter ->
+    /** What the list actually renders, narrowed by [ticketFilter] - before paging is applied. */
+    private val matching: StateFlow<List<TicketOverview>?> = combine(overviews, _ticketFilter) { all, filter ->
+        if (all == null) return@combine null
         when (filter) {
             TicketFilter.ACTIVE -> all.filter { it.ticket.status != com.sonothamin.meowlaundry.data.TicketStatus.CLOSED }
             TicketFilter.CLOSED -> all.filter { it.ticket.status == com.sonothamin.meowlaundry.data.TicketStatus.CLOSED }
             TicketFilter.ALL -> all
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** What the screen renders: the revealed window plus loading / has-more state. */
+    val paged: StateFlow<PagedList<TicketOverview>> = pageWindow.window(matching)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PagedList())
+
+    fun loadMore() = pageWindow.loadMore()
 
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedIds: StateFlow<Set<Long>> = _selectedIds
@@ -110,7 +125,8 @@ class LaundryViewModel(
 
     /** Selects everything currently visible under the active filter, not the whole history. */
     fun selectAll() {
-        _selectedIds.value = filteredOverviews.value.map { it.ticket.id }.toSet()
+        // Everything matching the current filter, not only the pages scrolled into view so far.
+        _selectedIds.value = matching.value.orEmpty().map { it.ticket.id }.toSet()
     }
 
     fun clearSelection() {
