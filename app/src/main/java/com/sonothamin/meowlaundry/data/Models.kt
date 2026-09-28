@@ -82,6 +82,9 @@ data class ClothingItem(
     val inClosetQuantity: Int get() = (ownedQuantity - atLaundryQuantity).coerceAtLeast(0)
 }
 
+/** Just enough of a garment to draw its thumbnail - avoids loading whole rows for photo lookups. */
+data class ItemThumb(val id: Long, val imagePath: String?)
+
 /**
  * One time a garment went to the laundry, flattened with the ticket it belonged to so the article
  * screen can build "last washed / last pressed" and its activity feed without extra lookups.

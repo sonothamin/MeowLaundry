@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
@@ -69,6 +72,11 @@ import com.sonothamin.meowlaundry.data.export.ExportUtils
 import com.sonothamin.meowlaundry.data.CurrencyAmount
 import com.sonothamin.meowlaundry.data.Currencies
 import com.sonothamin.meowlaundry.ui.components.ClothingCard
+import com.sonothamin.meowlaundry.ui.components.ClothingGridSkeleton
+import com.sonothamin.meowlaundry.ui.components.ClothingListSkeleton
+import com.sonothamin.meowlaundry.ui.components.EndOfList
+import com.sonothamin.meowlaundry.ui.components.LoadMoreFooter
+import com.sonothamin.meowlaundry.ui.components.LoadMoreOnNearEnd
 import com.sonothamin.meowlaundry.ui.components.ClothingListRow
 import com.sonothamin.meowlaundry.ui.components.EmptyState
 import com.sonothamin.meowlaundry.ui.theme.Spacing
@@ -86,7 +94,8 @@ fun ClosetScreen(
     /** Opens the nav drawer. Null hides the hamburger icon (e.g. when embedded without a drawer). */
     onMenuClick: (() -> Unit)? = null,
 ) {
-    val items by viewModel.items.collectAsStateWithLifecycle()
+    val paged by viewModel.paged.collectAsStateWithLifecycle()
+    val items = paged.items
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
@@ -101,6 +110,12 @@ fun ClosetScreen(
     val scope = rememberCoroutineScope()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
+    // Whichever of the two is on screen reports when the user nears its end; the other has no
+    // visible items and stays quiet.
+    gridState.LoadMoreOnNearEnd(enabled = paged.hasMore, onLoadMore = viewModel::loadMore)
+    listState.LoadMoreOnNearEnd(enabled = paged.hasMore, onLoadMore = viewModel::loadMore)
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -240,17 +255,24 @@ fun ClosetScreen(
                 }
             }
 
-            if (items.isEmpty()) {
-                EmptyState(
+            // Extra bottom room so the FAB never covers the end-of-list marker.
+            val listPadding = PaddingValues(
+                start = Spacing.md, top = Spacing.md, end = Spacing.md, bottom = 96.dp,
+            )
+            when {
+                paged.isLoading -> {
+                    if (viewMode == ClosetViewMode.GRID) ClothingGridSkeleton() else ClothingListSkeleton()
+                }
+                paged.total == 0 -> EmptyState(
                     icon = Icons.Default.Checkroom,
                     title = if (searchQuery.isNotBlank()) "No matches" else "Nothing here yet",
                     subtitle = if (searchQuery.isNotBlank()) "Try a different search term."
                     else "Tap + to add the first garment to your closet.",
                 )
-            } else if (viewMode == ClosetViewMode.GRID) {
-                LazyVerticalGrid(
+                viewMode == ClosetViewMode.GRID -> LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Adaptive(minSize = 140.dp),
-                    contentPadding = PaddingValues(Spacing.md),
+                    contentPadding = listPadding,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     modifier = Modifier.fillMaxSize(),
@@ -264,10 +286,13 @@ fun ClosetScreen(
                             onLongClick = { viewModel.startSelection(item.id) },
                         )
                     }
+                    item(key = "list-footer", span = { GridItemSpan(maxLineSpan) }) {
+                        if (paged.hasMore) LoadMoreFooter() else EndOfList()
+                    }
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(Spacing.md),
+                else -> LazyColumn(
+                    state = listState,
+                    contentPadding = listPadding,
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -279,6 +304,9 @@ fun ClosetScreen(
                             onSelectToggle = if (selectionMode) ({ viewModel.toggleSelection(item.id) }) else null,
                             onLongClick = { viewModel.startSelection(item.id) },
                         )
+                    }
+                    item(key = "list-footer") {
+                        if (paged.hasMore) LoadMoreFooter() else EndOfList()
                     }
                 }
             }

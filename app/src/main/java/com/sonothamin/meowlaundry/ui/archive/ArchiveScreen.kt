@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items as lazyRowItems
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,14 +40,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingItem
+import com.sonothamin.meowlaundry.ui.components.ClothingGridSkeleton
 import com.sonothamin.meowlaundry.ui.components.EmptyState
+import com.sonothamin.meowlaundry.ui.components.EndOfList
+import com.sonothamin.meowlaundry.ui.components.LoadMoreFooter
+import com.sonothamin.meowlaundry.ui.components.LoadMoreOnNearEnd
+import com.sonothamin.meowlaundry.ui.components.ThumbImage
 import com.sonothamin.meowlaundry.ui.components.archiveReasonLabel
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 import java.text.SimpleDateFormat
@@ -60,9 +65,11 @@ fun ArchiveScreen(
     /** Opens the nav drawer. Null hides the hamburger icon. */
     onMenuClick: (() -> Unit)? = null,
 ) {
-    val items by viewModel.items.collectAsStateWithLifecycle()
+    val paged by viewModel.paged.collectAsStateWithLifecycle()
     val reasonFilter by viewModel.reasonFilter.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val gridState = rememberLazyGridState()
+    gridState.LoadMoreOnNearEnd(enabled = paged.hasMore, onLoadMore = viewModel::loadMore)
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -83,22 +90,26 @@ fun ArchiveScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             ReasonFilterRow(selected = reasonFilter, onSelect = viewModel::setReasonFilter)
 
-            if (items.isEmpty()) {
-                EmptyState(
+            when {
+                paged.isLoading -> ClothingGridSkeleton()
+                paged.total == 0 -> EmptyState(
                     icon = Icons.Default.Inventory2,
                     title = "Nothing archived yet",
                     subtitle = "Donated, sold, discarded or otherwise retired garments end up here.",
                 )
-            } else {
-                LazyVerticalGrid(
+                else -> LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Adaptive(minSize = 140.dp),
                     contentPadding = PaddingValues(Spacing.md),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(items, key = { it.id }) { item ->
+                    items(paged.items, key = { it.id }) { item ->
                         ArchivedCard(item = item, onClick = { onOpenItem(item.id) }, onRestore = { viewModel.unarchive(item.id) })
+                    }
+                    item(key = "list-footer", span = { GridItemSpan(maxLineSpan) }) {
+                        if (paged.hasMore) LoadMoreFooter() else EndOfList()
                     }
                 }
             }
@@ -144,11 +155,10 @@ private fun ArchivedCard(item: ClothingItem, onClick: () -> Unit, onRestore: () 
                 contentAlignment = Alignment.Center,
             ) {
                 if (item.imagePath != null) {
-                    AsyncImage(
-                        model = item.imagePath,
+                    ThumbImage(
+                        path = item.imagePath,
                         contentDescription = item.title,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
                     )
                 } else {
                     Icon(

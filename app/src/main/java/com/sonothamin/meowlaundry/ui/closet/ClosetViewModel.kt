@@ -9,6 +9,8 @@ import com.sonothamin.meowlaundry.data.ClosetSortOption
 import com.sonothamin.meowlaundry.data.ClosetViewMode
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
+import com.sonothamin.meowlaundry.ui.paging.PageWindow
+import com.sonothamin.meowlaundry.ui.paging.PagedList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,7 +52,11 @@ class ClosetViewModel(
     val showWinterWear: StateFlow<Boolean> = appPreferences.showWinterWear
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
-    private val allItemsForFilter: StateFlow<List<ClothingItem>> = _filter
+    /** Reveals the list a page at a time so the screen only builds what is near the viewport. */
+    private val pageWindow = PageWindow()
+
+    // null = the database hasn't answered yet (drives the skeleton), as opposed to "empty".
+    private val allItemsForFilter: StateFlow<List<ClothingItem>?> = _filter
         .flatMapLatest { status ->
             when (status) {
                 // "All" means all active garments - archived ones have their own filter chip
@@ -66,14 +72,17 @@ class ClosetViewModel(
                 else -> repository.observeClothingByStatus(status)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val items: StateFlow<List<ClothingItem>> = combine(
+    /** Everything matching the current filter/search/sort, not just the revealed pages. */
+    private val matching: StateFlow<List<ClothingItem>?> = combine(
         allItemsForFilter,
         _searchQuery,
         _sortOption,
         showWinterWear,
-    ) { list, query, sort, showWinter ->
+    ) { source, query, sort, showWinter ->
+        if (source == null) return@combine null
+        val list: List<ClothingItem> = source
         val winterFiltered = if (showWinter) list else list.filter { !it.isWinterWear }
         val filtered = if (query.isBlank()) winterFiltered
         else winterFiltered.filter { item ->
@@ -88,7 +97,13 @@ class ClosetViewModel(
             ClosetSortOption.PRICE_HIGH -> filtered.sortedByDescending { it.price ?: -1.0 }
             ClosetSortOption.PRICE_LOW -> filtered.sortedBy { it.price ?: Double.MAX_VALUE }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** What the screen renders: the revealed window plus loading / has-more state. */
+    val paged: StateFlow<PagedList<ClothingItem>> = pageWindow.window(matching)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PagedList())
+
+    fun loadMore() = pageWindow.loadMore()
 
     val summary: StateFlow<ClosetRepository.ClosetSummary> = repository.observeSummary()
         .stateIn(
@@ -98,6 +113,7 @@ class ClosetViewModel(
         )
 
     fun setFilter(status: ClothingStatus?) {
+        pageWindow.reset()
         _filter.value = status
     }
 
@@ -106,6 +122,7 @@ class ClosetViewModel(
     }
 
     fun setShowWinterWear(show: Boolean) {
+        pageWindow.reset()
         viewModelScope.launch { appPreferences.setShowWinterWear(show) }
     }
 
@@ -115,14 +132,19 @@ class ClosetViewModel(
 
     fun setSearchActive(active: Boolean) {
         _searchActive.value = active
-        if (!active) _searchQuery.value = ""
+        if (!active) {
+            pageWindow.reset()
+            _searchQuery.value = ""
+        }
     }
 
     fun setSearchQuery(query: String) {
+        pageWindow.reset()
         _searchQuery.value = query
     }
 
     fun setSortOption(option: ClosetSortOption) {
+        pageWindow.reset()
         _sortOption.value = option
     }
 
@@ -141,7 +163,8 @@ class ClosetViewModel(
     }
 
     fun selectAll() {
-        _selectedIds.value = items.value.map { it.id }.toSet()
+        // Everything matching, not only the pages scrolled into view so far.
+        _selectedIds.value = matching.value.orEmpty().map { it.id }.toSet()
     }
 
     fun clearSelection() {

@@ -37,10 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
@@ -218,11 +216,10 @@ fun ClothingCard(
                 contentAlignment = Alignment.Center,
             ) {
                 if (item.imagePath != null) {
-                    AsyncImage(
-                        model = item.imagePath,
+                    ThumbImage(
+                        path = item.imagePath,
                         contentDescription = item.title,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
                     )
                 } else {
                     Icon(
@@ -312,11 +309,10 @@ fun ClothingListRow(
                 contentAlignment = Alignment.Center,
             ) {
                 if (item.imagePath != null) {
-                    AsyncImage(
-                        model = item.imagePath,
+                    ThumbImage(
+                        path = item.imagePath,
                         contentDescription = item.title,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
                     )
                 } else {
                     Icon(

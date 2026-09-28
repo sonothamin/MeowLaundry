@@ -17,6 +17,9 @@ interface ClothingDao {
     @Query("SELECT * FROM clothing_items WHERE status = :status ORDER BY title COLLATE NOCASE ASC")
     fun observeByStatus(status: ClothingStatus): Flow<List<ClothingItem>>
 
+    @Query("SELECT id, imagePath FROM clothing_items")
+    fun observeThumbs(): Flow<List<ItemThumb>>
+
     @Query("SELECT * FROM clothing_items WHERE id = :id")
     suspend fun getById(id: Long): ClothingItem?
 
