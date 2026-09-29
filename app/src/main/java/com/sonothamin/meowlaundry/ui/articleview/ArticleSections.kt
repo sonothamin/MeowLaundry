@@ -221,7 +221,13 @@ internal fun Modifier.pageSwipe(navState: ArticleNavState, onSwipe: (Long, Boole
 
 /** Hero carousel: square crop with the Material extra-large rounded corners. */
 @Composable
-internal fun PhotoCarousel(pagePaths: List<String?>, pagerState: PagerState, title: String) {
+internal fun PhotoCarousel(
+    pagePaths: List<String?>,
+    pagerState: PagerState,
+    title: String,
+    /** Tapped a photo: open it full screen, starting at this page. */
+    onOpen: (Int) -> Unit,
+) {
     Box(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.sm),
         contentAlignment = Alignment.Center,
@@ -237,7 +243,18 @@ internal fun PhotoCarousel(pagePaths: List<String?>, pagerState: PagerState, tit
         ) {
             HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
                 val path = pagePaths[page]
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(
+                            if (path != null) {
+                                Modifier.clickable(onClickLabel = "View photo full screen") { onOpen(page) }
+                            } else {
+                                Modifier
+                            }
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
                     if (path != null) {
                         AsyncImage(
                             model = path,

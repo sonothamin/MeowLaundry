@@ -42,12 +42,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.ui.components.archiveReasonLabel
@@ -75,6 +77,8 @@ fun ArticleViewScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showArchiveDialog by remember { mutableStateOf(false) }
     var detailsExpanded by remember { mutableStateOf(false) }
+    var viewerStartPage by remember { mutableStateOf<Int?>(null) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(state.deleted) {
         if (state.deleted) onBack()
@@ -117,7 +121,7 @@ fun ArticleViewScreen(
                 .padding(padding)
                 .pageSwipe(navState, onSwipeToItem),
         ) {
-            item { PhotoCarousel(pagePaths, pagerState, item.title) }
+            item { PhotoCarousel(pagePaths, pagerState, item.title, onOpen = { viewerStartPage = it }) }
             if (state.photos.size > 1) item { ThumbnailStrip(state.photos, pagerState) }
             item { ArticleTitle(item) }
             item { ArticleInfoBlock(item, care) }
@@ -145,6 +149,22 @@ fun ArticleViewScreen(
                 ActivityRow(entry = entry, onOpenTicket = onOpenTicket)
             }
             item { Spacer(modifier = Modifier.height(Spacing.lg)) }
+        }
+
+        viewerStartPage?.let { start ->
+            val photoPaths = pagePaths.filterNotNull()
+            if (start in photoPaths.indices) {
+                PhotoViewer(
+                    paths = photoPaths,
+                    startPage = start,
+                    title = item.title,
+                    onDismiss = { lastPage ->
+                        viewerStartPage = null
+                        // Leave the carousel on the photo the viewer ended on.
+                        scope.launch { pagerState.scrollToPage(lastPage) }
+                    },
+                )
+            }
         }
     }
 
