@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 
 /** Where a single garment currently is. */
 enum class ClothingStatus {
-    IN_CLOSET, AT_LAUNDRY, LOST, ARCHIVED
+    IN_CLOSET, AT_LAUNDRY, ARCHIVED
 }
 
 /** Why a garment was archived (taken out of active closet rotation for good). */

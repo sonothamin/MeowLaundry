@@ -531,7 +531,6 @@ private fun DetailRow(label: String, value: String) {
 private fun statusLabel(status: ClothingStatus): String = when (status) {
     ClothingStatus.IN_CLOSET -> "In closet"
     ClothingStatus.AT_LAUNDRY -> "At laundry"
-    ClothingStatus.LOST -> "Lost"
     ClothingStatus.ARCHIVED -> "Archived"
 }
 
@@ -539,7 +538,6 @@ private fun statusLabel(status: ClothingStatus): String = when (status) {
 private fun statusColor(status: ClothingStatus) = when (status) {
     ClothingStatus.IN_CLOSET -> MaterialTheme.colorScheme.primary
     ClothingStatus.AT_LAUNDRY -> MaterialTheme.colorScheme.tertiary
-    ClothingStatus.LOST -> MaterialTheme.colorScheme.error
     ClothingStatus.ARCHIVED -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
@@ -547,6 +545,5 @@ private fun statusColor(status: ClothingStatus) = when (status) {
 private fun statusIcon(status: ClothingStatus): ImageVector = when (status) {
     ClothingStatus.IN_CLOSET -> Icons.Default.Checkroom
     ClothingStatus.AT_LAUNDRY -> Icons.Default.LocalLaundryService
-    ClothingStatus.LOST -> Icons.Default.ReportProblem
     ClothingStatus.ARCHIVED -> Icons.Default.Inventory2
 }

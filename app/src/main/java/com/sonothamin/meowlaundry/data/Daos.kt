@@ -80,9 +80,6 @@ interface ClothingDao {
     @Query("SELECT * FROM clothing_items WHERE status = 'ARCHIVED' ORDER BY archivedAt DESC")
     fun observeArchived(): Flow<List<ClothingItem>>
 
-    @Query("SELECT * FROM clothing_items WHERE status = 'ARCHIVED' AND archiveReason = :reason ORDER BY archivedAt DESC")
-    fun observeArchivedByReason(reason: ArchiveReason): Flow<List<ClothingItem>>
-
     @Query(
         """
         UPDATE clothing_items

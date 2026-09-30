@@ -65,7 +65,6 @@ import com.sonothamin.meowlaundry.ui.theme.Spacing
 fun statusColor(status: ClothingStatus): Color = when (status) {
     ClothingStatus.IN_CLOSET -> MaterialTheme.colorScheme.tertiaryContainer
     ClothingStatus.AT_LAUNDRY -> MaterialTheme.colorScheme.primaryContainer
-    ClothingStatus.LOST -> MaterialTheme.colorScheme.errorContainer
     ClothingStatus.ARCHIVED -> MaterialTheme.colorScheme.surfaceVariant
 }
 
@@ -75,21 +74,18 @@ fun statusColor(status: ClothingStatus): Color = when (status) {
 fun statusContentColor(status: ClothingStatus): Color = when (status) {
     ClothingStatus.IN_CLOSET -> MaterialTheme.colorScheme.onTertiaryContainer
     ClothingStatus.AT_LAUNDRY -> MaterialTheme.colorScheme.onPrimaryContainer
-    ClothingStatus.LOST -> MaterialTheme.colorScheme.onErrorContainer
     ClothingStatus.ARCHIVED -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 fun statusLabel(status: ClothingStatus): String = when (status) {
     ClothingStatus.IN_CLOSET -> "In closet"
     ClothingStatus.AT_LAUNDRY -> "At laundry"
-    ClothingStatus.LOST -> "Lost"
     ClothingStatus.ARCHIVED -> "Archived"
 }
 
 fun statusIcon(status: ClothingStatus): ImageVector = when (status) {
     ClothingStatus.IN_CLOSET -> Icons.Filled.Checkroom
     ClothingStatus.AT_LAUNDRY -> Icons.Filled.LocalLaundryService
-    ClothingStatus.LOST -> Icons.Filled.ReportProblem
     ClothingStatus.ARCHIVED -> Icons.Filled.Inventory2
 }
 

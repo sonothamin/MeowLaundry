@@ -149,9 +149,6 @@ class ClosetRepository(
 
     fun observeArchived(): Flow<List<ClothingItem>> = clothingDao.observeArchived()
 
-    fun observeArchivedByReason(reason: ArchiveReason): Flow<List<ClothingItem>> =
-        clothingDao.observeArchivedByReason(reason)
-
     suspend fun archiveItem(id: Long, reason: ArchiveReason, notes: String?) =
         clothingDao.archive(id, reason, notes?.trim()?.ifBlank { null })
 

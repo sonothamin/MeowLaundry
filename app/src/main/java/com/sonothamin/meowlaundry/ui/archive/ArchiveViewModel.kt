@@ -33,20 +33,9 @@ class ArchiveViewModel(
     private val allArchived: StateFlow<List<ClothingItem>?> = repository.observeArchived()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // A garment can be "lost" two ways: archived with reason LOST, or just marked lost from the
-    // closet without ever being formally archived. The Lost filter here means "lost", full stop,
-    // so it also pulls in that second group - otherwise the Closet screen's Lost tile would land
-    // you on a page that's empty even though it just told you there are lost garments.
-    private val lostNotArchived: StateFlow<List<ClothingItem>?> = repository.observeClothingByStatus(ClothingStatus.LOST)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    private val matching: StateFlow<List<ClothingItem>?> = combine(allArchived, lostNotArchived, _reasonFilter) { archived, lost, reason ->
-        if (archived == null || lost == null) return@combine null
-        when (reason) {
-            null -> archived
-            ArchiveReason.LOST -> archived.filter { it.archiveReason == reason } + lost
-            else -> archived.filter { it.archiveReason == reason }
-        }
+    private val matching: StateFlow<List<ClothingItem>?> = combine(allArchived, _reasonFilter) { archived, reason ->
+        if (archived == null) return@combine null
+        if (reason == null) archived else archived.filter { it.archiveReason == reason }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** What the screen renders: the revealed window plus loading / has-more state. */

@@ -29,6 +29,15 @@ data class PrinterStatus(
     val coverOpen: Boolean,
 )
 
+/** One client for every call: a MeowSpoolClient is built per request, but connections are worth reusing. */
+private val sharedHttpClient: OkHttpClient by lazy {
+    OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .build()
+}
+
 /**
  * Thin wrapper around the MeowSpool HTTP API (see API.md). Talks to a phone on the same
  * Wi-Fi, so every call needs a generous timeout - a print job blocks until the printer
@@ -36,11 +45,7 @@ data class PrinterStatus(
  */
 class MeowSpoolClient(private val settings: PrintServerSettings) {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .build()
+    private val client = sharedHttpClient
 
     private fun baseUrl() = "http://${settings.host}:${settings.port}"
 
