@@ -22,10 +22,11 @@ android {
         vectorDrawables.useSupportLibrary = true
     }
 
-    // A real release key comes from the environment (CI secrets, or your shell) so it never lives in
-    // the repo. Without it the release build is signed with the debug key: fine for installing and
+    // A real release key comes from environment variables (RELEASE_KEYSTORE_FILE = path to the
+    // keystore, plus _PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD) so it never lives in the
+    // repo. Without it the release build is signed with the debug key: fine for installing and
     // testing the minified build, NOT something to publish.
-    val releaseKeystore = System.getenv("RELEASE_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+    val releaseKeystore = System.getenv("RELEASE_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }?.takeIf { it.isNotBlank() }
     signingConfigs {
         if (releaseKeystore != null) {
             create("release") {
