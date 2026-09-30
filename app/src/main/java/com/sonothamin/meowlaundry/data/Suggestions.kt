@@ -13,7 +13,7 @@ object Suggestions {
      */
     val builtInCategories: List<String> = listOf(
         "Top", "Bottom", "Dress", "Outerwear", "Underwear", "Sleepwear",
-        "Accessory", "Footwear", "Bedding", "Other",
+        "Accessory", "Footwear", "Bedding", "Towels", "Kitchen linen", "Curtains", "Cleaning cloths", "Other",
     )
 
     val garmentTypes: List<GarmentPreset> = listOf(
@@ -49,7 +49,19 @@ object Suggestions {
         GarmentPreset("Pillowcase", "Bedding"), GarmentPreset("Duvet cover", "Bedding"),
         GarmentPreset("Comforter", "Bedding"), GarmentPreset("Quilt", "Bedding"),
         GarmentPreset("Blanket", "Bedding"), GarmentPreset("Mattress protector", "Bedding"),
-        GarmentPreset("Bed skirt", "Bedding"), GarmentPreset("Towel", "Bedding"),
+        GarmentPreset("Bed skirt", "Bedding"),
+        // Household linens: things that are washed like clothes but never worn.
+        GarmentPreset("Towel", "Towels"), GarmentPreset("Bath towel", "Towels"),
+        GarmentPreset("Hand towel", "Towels"), GarmentPreset("Face towel", "Towels"),
+        GarmentPreset("Beach towel", "Towels"), GarmentPreset("Bath mat", "Towels"),
+        GarmentPreset("Napkin", "Kitchen linen"), GarmentPreset("Tea towel", "Kitchen linen"),
+        GarmentPreset("Apron", "Kitchen linen"), GarmentPreset("Tablecloth", "Kitchen linen"),
+        GarmentPreset("Table runner", "Kitchen linen"), GarmentPreset("Oven mitt", "Kitchen linen"),
+        GarmentPreset("Curtain", "Curtains"), GarmentPreset("Sheer curtain", "Curtains"),
+        GarmentPreset("Blackout curtain", "Curtains"), GarmentPreset("Drape", "Curtains"),
+        GarmentPreset("Rag", "Cleaning cloths"), GarmentPreset("Dishcloth", "Cleaning cloths"),
+        GarmentPreset("Microfiber cloth", "Cleaning cloths"), GarmentPreset("Duster", "Cleaning cloths"),
+        GarmentPreset("Mop head", "Cleaning cloths"),
         // Cold-weather pieces (auto-tagged as winter wear, see isWinterWear).
         GarmentPreset("Jumper", "Top"), GarmentPreset("Turtleneck", "Top"),
         GarmentPreset("Thermal top", "Underwear"),

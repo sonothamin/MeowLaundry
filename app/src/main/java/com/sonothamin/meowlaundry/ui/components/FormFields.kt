@@ -115,9 +115,20 @@ fun SuggestionTextField(
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMenu) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = imeAction),
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryEditable),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryEditable)
+                // The popup below is non-focusable (so it can't dismiss itself); close it when the field loses focus.
+                .onFocusChanged { if (!it.isFocused) expanded = false },
         )
-        DropdownMenu(expanded = showMenu, onDismissRequest = { expanded = false }) {
+        // A focusable popup steals focus from the text field every time it appears, which dismissed the
+        // keyboard on each keystroke that changed the suggestions. Non-focusable keeps typing uninterrupted.
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.exposedDropdownSize(),
+            properties = PopupProperties(focusable = false),
+        ) {
             filtered.forEach { suggestion ->
                 DropdownMenuItem(
                     text = { Text(suggestion) },

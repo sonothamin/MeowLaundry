@@ -30,9 +30,13 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bathtub
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.Curtains
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DryCleaning
 import androidx.compose.material.icons.filled.ExpandMore
@@ -580,15 +584,19 @@ private fun TypeFilterRow(
 
 /** Icon for a category chip. Built-in categories get a specific icon; anything typed by hand
  * (matched by exact display name, e.g. "Kitchen linen") falls back to a generic one. */
-private fun typeIcon(category: String) = when (category) {
-    "Top" -> Icons.Default.Checkroom
-    "Bottom" -> Icons.Default.Straighten
-    "Dress" -> Icons.Default.Woman
-    "Outerwear" -> Icons.Default.Layers
-    "Underwear" -> Icons.Default.DryCleaning
-    "Sleepwear" -> Icons.Default.Bedtime
-    "Accessory" -> Icons.Default.Watch
-    "Footwear" -> Icons.Default.Hiking
-    "Bedding" -> Icons.Default.Hotel
+private fun typeIcon(category: String) = when (category.trim().lowercase()) {
+    "top" -> Icons.Default.Checkroom
+    "bottom" -> Icons.Default.Straighten
+    "dress" -> Icons.Default.Woman
+    "outerwear" -> Icons.Default.Layers
+    "underwear" -> Icons.Default.DryCleaning
+    "sleepwear" -> Icons.Default.Bedtime
+    "accessory" -> Icons.Default.Watch
+    "footwear" -> Icons.Default.Hiking
+    "bedding" -> Icons.Default.Hotel
+    "towels" -> Icons.Default.Bathtub
+    "kitchen linen" -> Icons.Default.Restaurant
+    "curtains" -> Icons.Default.Curtains
+    "cleaning cloths" -> Icons.Default.CleaningServices
     else -> Icons.Default.Category
 }
