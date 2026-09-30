@@ -132,9 +132,6 @@ class PrintDispatcher(
         printManager.print(jobName, TicketPagePrintDocumentAdapter(tickets, customization, jobName), null)
     }
 
-    /** Renders and prints a single label. */
-    suspend fun dispatch(bitmap: Bitmap): PrintOutcome = dispatchMultiple(listOf(bitmap))
-
     /** Renders and prints several labels in one go (used by multiselect actions). */
     suspend fun dispatchMultiple(bitmaps: List<Bitmap>): PrintOutcome {
         if (bitmaps.isEmpty()) return PrintOutcome.Failed("Nothing to print")

@@ -46,6 +46,4 @@ class PhotoStore(private val context: Context) {
         val file = File(path)
         if (file.exists() && !file.delete()) Log.w("PhotoStore", "Couldn't delete a photo file")
     }
-
-    fun fileFor(path: String): File = File(path)
 }

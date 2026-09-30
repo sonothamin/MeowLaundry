@@ -105,10 +105,6 @@ class SettingsViewModel(
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState
 
-    fun updateSettings(settings: PrintServerSettings) {
-        viewModelScope.launch { printPreferences.update(settings) }
-    }
-
     /** Saves both the connection settings and the ticket layout together, then confirms via [uiState.message]. */
     fun savePrintSettings(settings: PrintServerSettings, customization: LabelCustomization) {
         viewModelScope.launch {

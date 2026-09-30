@@ -66,8 +66,6 @@ data class TicketDetailUiState(
         }
     }
 
-    fun savedDecision(garmentId: Long): ItemDecision = decisionOf(garmentId, savedResolution(garmentId))
-
     /** Coarse per-article state: PENDING while any unit is still out, otherwise RETURNED (any back) or LOST. */
     fun decisionFor(garmentId: Long): ItemDecision = decisionOf(garmentId, resolutionFor(garmentId))
 
