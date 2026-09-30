@@ -2,13 +2,20 @@ package com.sonothamin.meowlaundry.data.export
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import java.io.File
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Small helpers for the closet/history "export" and "share" multiselect actions. */
 object ExportUtils {
@@ -79,4 +86,24 @@ object ExportUtils {
         "MeowLaundry history (${tickets.size} ticket(s)):\n" + tickets.joinToString("\n") {
             "- #${it.id} ${it.serviceType} · ${it.status}"
         }
+}
+
+/**
+ * Writes to a file the person just created with the system "save as" picker. Returns whether it
+ * worked; on failure the empty file the picker made is removed again so it doesn't look like a
+ * successful export.
+ */
+suspend fun Context.saveToUri(uri: Uri, write: suspend (OutputStream) -> Boolean): Boolean {
+    val saved = withContext(Dispatchers.IO) {
+        try {
+            contentResolver.openOutputStream(uri)?.use { write(it) } ?: false
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("Export", "Saving the file failed", e)
+            false
+        }
+    }
+    if (!saved) runCatching { DocumentsContract.deleteDocument(contentResolver, uri) }
+    return saved
 }

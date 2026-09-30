@@ -109,13 +109,20 @@ fun ItemEditScreen(
     LaunchedEffect(state.saved, state.deleted) {
         if (state.saved || state.deleted) onDone()
     }
+    LaunchedEffect(state.message) {
+        state.message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.dismissMessage()
+        }
+    }
 
     var pendingCapturePath by remember { mutableStateOf<String?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture(),
     ) { success ->
         val path = pendingCapturePath
-        if (success && path != null) viewModel.onPhotoCaptured(path)
+        pendingCapturePath = null
+        if (success && path != null) viewModel.onPhotoCaptured(path) else photoStore.delete(path) // drop the empty target file
     }
 
     // Camera is a dangerous permission on API 23+: launching TakePicture() without it

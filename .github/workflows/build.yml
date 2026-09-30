@@ -54,6 +54,8 @@ jobs:
       # Release turns on R8 (minify) and lintVital, which debug never exercises: a missing keep
       # rule or a lint error would otherwise only show up in the shipped app. Unsigned on purpose.
       - name: Assemble release (R8 + lint check)
+        # No release key is configured here, so this APK is signed with the debug key (see
+        # app/build.gradle.kts): installable for testing the minified build, not publishable.
         run: gradle assembleRelease --stacktrace
 
       - name: Verify APK output
@@ -67,9 +69,16 @@ jobs:
           echo "unzip -l summary (should look like a normal APK's internal listing):"
           unzip -l app/build/outputs/apk/debug/*.apk | tail -5
 
-      - name: Upload APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: meowlaundry-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: meowlaundry-release-apk
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error

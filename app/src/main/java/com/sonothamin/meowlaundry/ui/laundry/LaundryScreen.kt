@@ -142,7 +142,7 @@ fun LaundryScreen(
                 is LaundryEvent.LaunchIntent -> runCatching {
                     context.startActivity(android.content.Intent.createChooser(event.intent, event.chooserTitle))
                 }.onFailure {
-                    snackbarHostState.showSnackbar("Couldn't open MeowSpool - is it installed?")
+                    snackbarHostState.showSnackbar("Couldn't open \"${event.chooserTitle}\"")
                 }
             }
         }

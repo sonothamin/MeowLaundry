@@ -87,6 +87,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.sonothamin.meowlaundry.data.export.saveToUri
 import kotlinx.coroutines.launch
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.ui.components.QuantityStepper
@@ -136,10 +137,11 @@ fun TicketDetailScreen(
         val bitmap = pendingExportBitmap
         pendingExportBitmap = null
         if (uri != null && bitmap != null) {
-            runCatching {
-                context.contentResolver.openOutputStream(uri)?.use { out ->
+            scope.launch {
+                val saved = context.saveToUri(uri) { out ->
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
                 }
+                snackbarHostState.showSnackbar(if (saved) "Label image saved" else "Couldn't save the label image")
             }
         }
     }
@@ -150,9 +152,8 @@ fun TicketDetailScreen(
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                runCatching {
-                    context.contentResolver.openOutputStream(uri)?.use { out -> viewModel.writeTicketPdf(out) }
-                }
+                val saved = context.saveToUri(uri) { out -> viewModel.writeTicketPdf(out) }
+                snackbarHostState.showSnackbar(if (saved) "Ticket PDF saved" else "Couldn't save the ticket PDF")
             }
         }
     }

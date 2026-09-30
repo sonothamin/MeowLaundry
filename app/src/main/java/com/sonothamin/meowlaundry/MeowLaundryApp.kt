@@ -1,6 +1,7 @@
 package com.sonothamin.meowlaundry
 
 import android.app.Application
+import android.util.Log
 import com.sonothamin.meowlaundry.data.AppDatabase
 import com.sonothamin.meowlaundry.data.AppPreferences
 import com.sonothamin.meowlaundry.data.ArchiveReason
@@ -55,9 +56,14 @@ class MeowLaundryApp : Application() {
         printDispatcher = PrintDispatcher(this, printPreferences)
 
         Reminders.createChannel(this)
+        // Housekeeping only: if it fails the app still works, so log it instead of crashing on launch.
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-            repository.purgeEmptyTickets()
-            Reminders.sync(this@MeowLaundryApp)
+            try {
+                repository.purgeEmptyTickets()
+                Reminders.sync(this@MeowLaundryApp)
+            } catch (e: Exception) {
+                Log.e("MeowLaundryApp", "Startup maintenance failed", e)
+            }
         }
     }
 }

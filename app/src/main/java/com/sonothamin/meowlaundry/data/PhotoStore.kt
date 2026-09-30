@@ -2,6 +2,7 @@ package com.sonothamin.meowlaundry.data
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
 import java.util.UUID
@@ -20,10 +21,15 @@ class PhotoStore(private val context: Context) {
     fun importPhoto(source: Uri): String {
         val fileName = "${UUID.randomUUID()}.jpg"
         val destination = File(photosDir, fileName)
-        context.contentResolver.openInputStream(source).use { input ->
-            destination.outputStream().use { output ->
-                requireNotNull(input) { "Could not open picked image" }.copyTo(output)
+        try {
+            context.contentResolver.openInputStream(source).use { input ->
+                destination.outputStream().use { output ->
+                    requireNotNull(input) { "Could not open picked image" }.copyTo(output)
+                }
             }
+        } catch (e: Exception) {
+            destination.delete() // never leave a half-copied photo behind
+            throw e
         }
         return destination.absolutePath
     }
@@ -37,7 +43,8 @@ class PhotoStore(private val context: Context) {
 
     fun delete(path: String?) {
         if (path.isNullOrBlank()) return
-        runCatching { File(path).delete() }
+        val file = File(path)
+        if (file.exists() && !file.delete()) Log.w("PhotoStore", "Couldn't delete a photo file")
     }
 
     fun fileFor(path: String): File = File(path)

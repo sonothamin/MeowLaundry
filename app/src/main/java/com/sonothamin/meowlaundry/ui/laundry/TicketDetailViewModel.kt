@@ -216,11 +216,13 @@ class TicketDetailViewModel(
      * stream) - used by the preview dialog's export action when the ticket format is
      * [TicketFormat.PAGE], so exporting a document saves a document, not a screenshot of one.
      */
-    suspend fun writeTicketPdf(output: java.io.OutputStream) {
-        val ticket = repository.getTicket(ticketId) ?: return
+    /** Writes the ticket as a PDF. False means there was nothing to write (no such ticket, or no garments). */
+    suspend fun writeTicketPdf(output: java.io.OutputStream): Boolean {
+        val ticket = repository.getTicket(ticketId) ?: return false
         val garments = repository.garmentsForPrint(ticketId)
-        if (garments.isEmpty()) return
+        if (garments.isEmpty()) return false
         printDispatcher.writeTicketPdf(ticket, garments, output)
+        return true
     }
 
     fun dismissPreview() {

@@ -11,6 +11,7 @@ import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.data.TitleGenerator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * One photo in the gallery, whether or not the article has been saved yet.
@@ -33,6 +35,8 @@ data class PhotoEntry(
 )
 
 data class ItemEditUiState(
+    /** One-shot notice for the screen to show (e.g. a photo that couldn't be added), then dismiss. */
+    val message: String? = null,
     val id: Long? = null,
     val title: String = "",
     val brand: String = "",
@@ -218,7 +222,18 @@ class ItemEditViewModel(
 
     /** Adds one or more photos picked from the gallery. Any number is allowed; the first ever added is primary. */
     fun onPhotosPicked(uris: List<Uri>) {
-        uris.forEach { uri -> addPhotoPath(photoStore.importPhoto(uri)) }
+        viewModelScope.launch {
+            val results = withContext(Dispatchers.IO) { uris.map { runCatching { photoStore.importPhoto(it) } } }
+            results.forEach { result -> result.getOrNull()?.let { addPhotoPath(it) } }
+            val failed = results.count { it.isFailure }
+            if (failed > 0) {
+                _state.update { it.copy(message = if (failed == 1) "Couldn't add that photo" else "Couldn't add $failed photos") }
+            }
+        }
+    }
+
+    fun dismissMessage() {
+        _state.update { it.copy(message = null) }
     }
 
     fun onPhotoCaptured(path: String) {

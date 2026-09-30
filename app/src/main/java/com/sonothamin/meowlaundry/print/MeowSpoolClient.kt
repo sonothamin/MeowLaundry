@@ -2,6 +2,10 @@ package com.sonothamin.meowlaundry.print
 
 import android.graphics.Bitmap
 import com.sonothamin.meowlaundry.data.PrintServerSettings
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -64,7 +68,7 @@ class MeowSpoolClient(private val settings: PrintServerSettings) {
                     )
                 )
             }
-        }.getOrElse { MeowSpoolResult.Failure(it.message ?: "Network error") }
+        }.getOrElse { MeowSpoolResult.Failure(describe(it)) }
     }
 
     /** Prints [bitmap] as a PNG, using the darkness/dither defaults from [settings]. */
@@ -88,7 +92,15 @@ class MeowSpoolClient(private val settings: PrintServerSettings) {
                 val json = JSONObject(body)
                 MeowSpoolResult.Success(json.optInt("rows", 0))
             }
-        }.getOrElse { MeowSpoolResult.Failure(it.message ?: "Network error") }
+        }.getOrElse { MeowSpoolResult.Failure(describe(it)) }
+    }
+
+    /** A message a person can act on, instead of the raw exception text. */
+    private fun describe(error: Throwable): String = when (error) {
+        is SocketTimeoutException -> "The print server didn't answer in time."
+        is ConnectException, is UnknownHostException, is NoRouteToHostException ->
+            "Can't reach the print server at ${settings.host}:${settings.port}. Is MeowSpool running on the same Wi-Fi?"
+        else -> error.message ?: "Network error"
     }
 
     private fun parseError(body: String, code: Int): String = runCatching {

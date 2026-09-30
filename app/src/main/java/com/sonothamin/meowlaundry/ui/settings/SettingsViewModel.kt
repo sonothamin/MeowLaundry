@@ -144,7 +144,7 @@ class SettingsViewModel(
             _uiState.value = _uiState.value.copy(isExporting = true)
             runCatching { backupManager.exportTo(uri) }
                 .onSuccess { _uiState.value = _uiState.value.copy(isExporting = false, message = "Export complete") }
-                .onFailure { _uiState.value = _uiState.value.copy(isExporting = false, message = "Export failed: ${it.message}") }
+                .onFailure { _uiState.value = _uiState.value.copy(isExporting = false, message = "Export failed: ${it.message ?: "unknown error"}") }
         }
     }
 
@@ -153,7 +153,7 @@ class SettingsViewModel(
             _uiState.value = _uiState.value.copy(isImporting = true)
             runCatching { backupManager.importFrom(uri) }
                 .onSuccess { _uiState.value = _uiState.value.copy(isImporting = false, message = "Import complete") }
-                .onFailure { _uiState.value = _uiState.value.copy(isImporting = false, message = "Import failed: ${it.message}") }
+                .onFailure { _uiState.value = _uiState.value.copy(isImporting = false, message = "Import failed: ${it.message ?: "unknown error"}") }
         }
     }
 

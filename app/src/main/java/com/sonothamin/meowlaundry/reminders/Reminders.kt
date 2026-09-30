@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
@@ -129,6 +130,7 @@ object Reminders {
             .setAutoCancel(true)
             .build()
         runCatching { manager.notify(id, notification) }
+            .onFailure { Log.w("Reminders", "Couldn't post the reminder notification", it) }
     }
 }
 
