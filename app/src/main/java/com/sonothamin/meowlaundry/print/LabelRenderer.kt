@@ -10,6 +10,7 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.ServiceType
+import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.data.TicketFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -61,7 +62,7 @@ object LabelRenderer {
             GarmentLines(
                 nameLines = wrapText(if (garment.quantity > 1) "${garment.title} \u00d7${garment.quantity}" else garment.title, namePaint, usableWidth - indexColumnWidth),
                 typeLine = if (customization.showGarmentType) {
-                    garment.type.name.lowercase().replaceFirstChar { it.uppercase() }
+                    Suggestions.displayCategory(garment.type)
                 } else {
                     null
                 },

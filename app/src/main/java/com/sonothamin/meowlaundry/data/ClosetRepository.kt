@@ -415,7 +415,7 @@ class ClosetRepository(
                 BackupClothingItem(
                     id = it.id,
                     title = it.title,
-                    type = it.type.name,
+                    type = it.type,
                     imagePath = it.imagePath,
                     price = it.price,
                     status = it.status.name,
@@ -473,7 +473,7 @@ class ClosetRepository(
             ClothingItem(
                 id = it.id,
                 title = it.title,
-                type = backupEnum<ClothingType>(it.type, "garment type"),
+                type = it.type,
                 imagePath = it.imagePath,
                 price = it.price,
                 status = backupEnum<ClothingStatus>(it.status, "garment status"),

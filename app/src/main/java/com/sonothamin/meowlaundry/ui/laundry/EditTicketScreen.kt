@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ServiceType
+import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.ui.components.DueDateChips
 import com.sonothamin.meowlaundry.ui.components.SuggestionTextField
 import com.sonothamin.meowlaundry.ui.components.serviceIcon
@@ -377,4 +378,4 @@ private fun AvailableGarmentRow(item: ClothingItem, onAdd: () -> Unit) {
 }
 
 private fun garmentTypeLabel(item: ClothingItem): String =
-    item.type.name.lowercase().replaceFirstChar { it.uppercase() }
+    Suggestions.displayCategory(item.type)

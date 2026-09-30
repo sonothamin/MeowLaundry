@@ -38,11 +38,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -50,7 +46,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -80,9 +75,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import com.sonothamin.meowlaundry.data.ClothingType
+import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.data.Currencies
 import com.sonothamin.meowlaundry.ui.components.GroupedField
+import com.sonothamin.meowlaundry.ui.components.SuggestionTextField
 import com.sonothamin.meowlaundry.ui.components.SuggestionFieldGroup
 import com.sonothamin.meowlaundry.ui.components.CurrencyDropdown
 import com.sonothamin.meowlaundry.data.PhotoStore
@@ -259,7 +255,14 @@ fun ItemEditScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            TypeDropdown(selected = state.type, onSelect = viewModel::onTypeChange)
+            SuggestionTextField(
+                value = state.type,
+                onValueChange = viewModel::onTypeChange,
+                label = "Category",
+                placeholder = "Top",
+                suggestions = Suggestions.builtInCategories,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.Top) {
                 CurrencyDropdown(
@@ -470,29 +473,3 @@ private fun PhotoThumbnail(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TypeDropdown(selected: ClothingType, onSelect: (ClothingType) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = selected.name.lowercase().replaceFirstChar { it.uppercase() },
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Category") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ClothingType.values().forEach { type ->
-                DropdownMenuItem(
-                    text = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                    onClick = {
-                        onSelect(type)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
-}

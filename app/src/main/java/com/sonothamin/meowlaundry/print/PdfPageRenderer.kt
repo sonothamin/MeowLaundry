@@ -14,6 +14,7 @@ import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.ServiceType
+import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.data.defaultPageSize
 import java.io.File
 import java.io.FileOutputStream
@@ -259,7 +260,7 @@ object PdfPageRenderer {
             canvas.drawText(if (garment.quantity > 1) "${garment.title}  \u00d7${garment.quantity}" else garment.title, marginH + 34f, centerY + 4f, namePaint)
 
             if (customization.showGarmentType) {
-                val typeLabel = garment.type.name.lowercase().replaceFirstChar { it.uppercase() }
+                val typeLabel = Suggestions.displayCategory(garment.type)
                 val tagPaint = p(9f, color = MUTED, align = Paint.Align.RIGHT)
                 val tagWidth = tagPaint.measureText(typeLabel) + 16f
                 val tagRight = pageWidth - marginH - 4f

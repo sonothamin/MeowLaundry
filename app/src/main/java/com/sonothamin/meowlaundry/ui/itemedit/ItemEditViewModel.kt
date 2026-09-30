@@ -7,7 +7,6 @@ import com.sonothamin.meowlaundry.data.AppPreferences
 import com.sonothamin.meowlaundry.data.ClosetRepository
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
-import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.PhotoStore
 import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.data.TitleGenerator
@@ -44,8 +43,8 @@ data class ItemEditUiState(
     val color: String = "",
     /** True once the user typed their own title; until then the title follows brand/color/type. */
     val titleCustomized: Boolean = false,
-    /** Broad category (Top, Bottom...). Follows the garment type until the user picks one. */
-    val type: ClothingType = ClothingType.TOP,
+    /** Free-text category ("Top", "Bedding"...). Follows the garment type until the user picks one. */
+    val type: String = "",
     val currency: String = "USD",
     /** Every photo, in order. Works the same whether the article exists in the DB yet or not. */
     val photos: List<PhotoEntry> = emptyList(),
@@ -183,7 +182,7 @@ class ItemEditViewModel(
         }
     }
 
-    fun onTypeChange(value: ClothingType) {
+    fun onTypeChange(value: String) {
         categoryTouched = true
         _state.update { it.copy(type = value) }
     }
@@ -296,7 +295,7 @@ class ItemEditViewModel(
                     garmentType = Suggestions.clean(current.garmentType),
                     color = Suggestions.clean(current.color),
                     currency = current.currency,
-                    type = current.type,
+                    type = current.type.trim().ifBlank { "Other" },
                     imagePath = current.primaryImagePath,
                     price = current.priceText.toDoubleOrNull(),
                     status = current.status,
@@ -331,7 +330,7 @@ class ItemEditViewModel(
                     garmentType = Suggestions.clean(current.garmentType),
                     color = Suggestions.clean(current.color),
                     currency = current.currency,
-                    type = current.type,
+                    type = current.type.trim().ifBlank { "Other" },
                     imagePath = current.primaryImagePath,
                     price = current.priceText.toDoubleOrNull(),
                     status = current.status,

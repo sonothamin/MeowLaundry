@@ -7,11 +7,6 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
-/** Broad category of a garment, used for filtering the closet and choosing an icon. */
-enum class ClothingType {
-    TOP, BOTTOM, DRESS, OUTERWEAR, UNDERWEAR, SLEEPWEAR, ACCESSORY, FOOTWEAR, OTHER
-}
-
 /** Where a single garment currently is. */
 enum class ClothingStatus {
     IN_CLOSET, AT_LAUNDRY, LOST, ARCHIVED
@@ -41,7 +36,15 @@ enum class TicketStatus {
 data class ClothingItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
-    val type: ClothingType,
+    /**
+     * Free-text category ("Top", "Bedding", "Kitchen linen"...), used for grouping and the closet
+     * icon. Typed by hand with suggestions rather than picked from a closed list - see
+     * [com.sonothamin.meowlaundry.data.Suggestions.builtInCategories] for the built-in presets and
+     * [com.sonothamin.meowlaundry.data.Suggestions.categoryFor] for auto-detection from the garment
+     * type. Stored exactly as typed; [com.sonothamin.meowlaundry.data.Suggestions.displayCategory]
+     * normalizes older ALL-CAPS values from before this was free text.
+     */
+    val type: String,
     val imagePath: String? = null,
     /** Replacement price, used to value what was lost if the laundry loses this item. */
     val price: Double? = null,

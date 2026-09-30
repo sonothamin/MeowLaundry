@@ -58,7 +58,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClothingItem
-import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.LabelCustomization
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import com.sonothamin.meowlaundry.data.PDF_HEADER_COLOR_PRESETS
@@ -78,8 +77,8 @@ import kotlin.math.roundToInt
 /** Fake ticket + garments used only to render the live preview - never saved anywhere. */
 private val previewTicket = LaundryTicket(id = 12, serviceType = ServiceType.WASH_AND_PRESS, providerName = "Fresh & Clean")
 private val previewGarments = listOf(
-    ClothingItem(id = 1, title = "Blue Oxford Shirt", type = ClothingType.TOP),
-    ClothingItem(id = 2, title = "Grey Wool Trousers", type = ClothingType.BOTTOM),
+    ClothingItem(id = 1, title = "Blue Oxford Shirt", type = "Top"),
+    ClothingItem(id = 2, title = "Grey Wool Trousers", type = "Bottom"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

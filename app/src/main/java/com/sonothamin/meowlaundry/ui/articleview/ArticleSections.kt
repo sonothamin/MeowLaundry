@@ -85,6 +85,7 @@ import com.sonothamin.meowlaundry.ui.theme.Spacing
 import androidx.compose.foundation.pager.PagerState
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingItemPhoto
+import com.sonothamin.meowlaundry.data.Suggestions
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -506,7 +507,7 @@ internal fun DeleteArticleDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
 
 /** "Top", "Bottom"... from the broad category enum. */
 private fun categoryLabel(item: ClothingItem): String =
-    item.type.name.lowercase().replaceFirstChar { it.uppercase() }
+    Suggestions.displayCategory(item.type)
 
 /** "3 days ago" under the date, or [neverLabel] when there is no date yet. */
 private fun dateCell(label: String, icon: ImageVector, at: Long?, neverLabel: String = "Never"): InfoCell {

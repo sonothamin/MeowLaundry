@@ -98,6 +98,7 @@ import com.sonothamin.meowlaundry.data.ClothingStatus
 import com.sonothamin.meowlaundry.data.DueDates
 import com.sonothamin.meowlaundry.data.DueState
 import com.sonothamin.meowlaundry.data.LaundryTicket
+import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.data.TicketStatus
 import com.sonothamin.meowlaundry.ui.components.DueChip
 import com.sonothamin.meowlaundry.ui.components.DueDatePickerDialog
@@ -620,7 +621,7 @@ private fun GarmentDecisionCard(
                     Text(garment.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
                         listOfNotNull(
-                            garment.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                            Suggestions.displayCategory(garment.type),
                             garment.brand?.takeIf { it.isNotBlank() },
                             if (quantity > 1) "\u00d7$quantity" else null,
                         ).joinToString(" · "),

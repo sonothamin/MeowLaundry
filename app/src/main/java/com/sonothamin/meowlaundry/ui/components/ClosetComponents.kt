@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import com.sonothamin.meowlaundry.data.ArchiveReason
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
+import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.ui.theme.Spacing
 
 @Composable
@@ -154,7 +155,7 @@ fun partlyOutLabel(item: ClothingItem): String? =
 /** Type, plus the unit count and how many are out, joined for the small line under a title. */
 fun clothingSubtitle(item: ClothingItem): String =
     listOfNotNull(
-        item.type.name.lowercase().replaceFirstChar { it.uppercase() },
+        Suggestions.displayCategory(item.type),
         quantityLabel(item),
         partlyOutLabel(item),
     ).joinToString(" \u00b7 ")
@@ -341,7 +342,7 @@ fun ClothingCard(
                 )
                 Text(
                     text = listOfNotNull(
-                        item.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                        Suggestions.displayCategory(item.type),
                         partlyOutLabel(item),
                     ).joinToString(" \u00b7 "),
                     style = MaterialTheme.typography.bodySmall,

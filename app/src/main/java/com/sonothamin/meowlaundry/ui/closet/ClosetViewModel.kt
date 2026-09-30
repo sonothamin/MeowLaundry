@@ -84,7 +84,7 @@ class ClosetViewModel(
         val winterFiltered = if (showWinter) list else list.filter { !it.isWinterWear }
         val filtered = if (query.isBlank()) winterFiltered
         else winterFiltered.filter { item ->
-            listOf(item.title, item.brand, item.color, item.garmentType, item.type.name)
+            listOf(item.title, item.brand, item.color, item.garmentType, item.type)
                 .any { it?.contains(query, ignoreCase = true) == true }
         }
         when (sort) {

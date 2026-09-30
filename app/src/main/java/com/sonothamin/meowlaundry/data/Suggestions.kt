@@ -1,46 +1,62 @@
 package com.sonothamin.meowlaundry.data
 
 /** A garment type preset and the broad category it belongs to. */
-data class GarmentPreset(val name: String, val category: ClothingType)
+data class GarmentPreset(val name: String, val category: String)
 
 /** Preset lists for the add/edit form, merged with what the user has already entered. */
 object Suggestions {
 
+    /**
+     * Built-in categories offered as suggestions for the (free-text) category field. Anything the
+     * person types is accepted - this is just what's shown before they start typing, plus whatever
+     * they've matched by prefix.
+     */
+    val builtInCategories: List<String> = listOf(
+        "Top", "Bottom", "Dress", "Outerwear", "Underwear", "Sleepwear",
+        "Accessory", "Footwear", "Bedding", "Other",
+    )
+
     val garmentTypes: List<GarmentPreset> = listOf(
-        GarmentPreset("T-shirt", ClothingType.TOP), GarmentPreset("Shirt", ClothingType.TOP),
-        GarmentPreset("Polo shirt", ClothingType.TOP), GarmentPreset("Blouse", ClothingType.TOP),
-        GarmentPreset("Tank top", ClothingType.TOP), GarmentPreset("Sweater", ClothingType.TOP),
-        GarmentPreset("Hoodie", ClothingType.TOP), GarmentPreset("Sweatshirt", ClothingType.TOP),
-        GarmentPreset("Cardigan", ClothingType.TOP), GarmentPreset("Kurta", ClothingType.TOP),
-        GarmentPreset("Jeans", ClothingType.BOTTOM), GarmentPreset("Trousers", ClothingType.BOTTOM),
-        GarmentPreset("Chinos", ClothingType.BOTTOM), GarmentPreset("Shorts", ClothingType.BOTTOM),
-        GarmentPreset("Skirt", ClothingType.BOTTOM), GarmentPreset("Leggings", ClothingType.BOTTOM),
-        GarmentPreset("Joggers", ClothingType.BOTTOM), GarmentPreset("Cargo pants", ClothingType.BOTTOM),
-        GarmentPreset("Dress", ClothingType.DRESS), GarmentPreset("Maxi dress", ClothingType.DRESS),
-        GarmentPreset("Jumpsuit", ClothingType.DRESS), GarmentPreset("Saree", ClothingType.DRESS),
-        GarmentPreset("Jacket", ClothingType.OUTERWEAR), GarmentPreset("Coat", ClothingType.OUTERWEAR),
-        GarmentPreset("Blazer", ClothingType.OUTERWEAR), GarmentPreset("Puffer jacket", ClothingType.OUTERWEAR),
-        GarmentPreset("Denim jacket", ClothingType.OUTERWEAR), GarmentPreset("Raincoat", ClothingType.OUTERWEAR),
-        GarmentPreset("Windbreaker", ClothingType.OUTERWEAR), GarmentPreset("Vest", ClothingType.OUTERWEAR),
-        GarmentPreset("Underwear", ClothingType.UNDERWEAR), GarmentPreset("Boxers", ClothingType.UNDERWEAR),
-        GarmentPreset("Bra", ClothingType.UNDERWEAR), GarmentPreset("Undershirt", ClothingType.UNDERWEAR),
-        GarmentPreset("Socks", ClothingType.UNDERWEAR),
-        GarmentPreset("Pajamas", ClothingType.SLEEPWEAR), GarmentPreset("Nightgown", ClothingType.SLEEPWEAR),
-        GarmentPreset("Robe", ClothingType.SLEEPWEAR),
-        GarmentPreset("Scarf", ClothingType.ACCESSORY), GarmentPreset("Hat", ClothingType.ACCESSORY),
-        GarmentPreset("Cap", ClothingType.ACCESSORY), GarmentPreset("Beanie", ClothingType.ACCESSORY),
-        GarmentPreset("Belt", ClothingType.ACCESSORY), GarmentPreset("Tie", ClothingType.ACCESSORY),
-        GarmentPreset("Gloves", ClothingType.ACCESSORY), GarmentPreset("Shawl", ClothingType.ACCESSORY),
-        GarmentPreset("Sneakers", ClothingType.FOOTWEAR), GarmentPreset("Boots", ClothingType.FOOTWEAR),
-        GarmentPreset("Sandals", ClothingType.FOOTWEAR), GarmentPreset("Loafers", ClothingType.FOOTWEAR),
-        GarmentPreset("Slippers", ClothingType.FOOTWEAR),
+        GarmentPreset("T-shirt", "Top"), GarmentPreset("Shirt", "Top"),
+        GarmentPreset("Polo shirt", "Top"), GarmentPreset("Blouse", "Top"),
+        GarmentPreset("Tank top", "Top"), GarmentPreset("Sweater", "Top"),
+        GarmentPreset("Hoodie", "Top"), GarmentPreset("Sweatshirt", "Top"),
+        GarmentPreset("Cardigan", "Top"), GarmentPreset("Kurta", "Top"),
+        GarmentPreset("Jeans", "Bottom"), GarmentPreset("Trousers", "Bottom"),
+        GarmentPreset("Chinos", "Bottom"), GarmentPreset("Shorts", "Bottom"),
+        GarmentPreset("Skirt", "Bottom"), GarmentPreset("Leggings", "Bottom"),
+        GarmentPreset("Joggers", "Bottom"), GarmentPreset("Cargo pants", "Bottom"),
+        GarmentPreset("Dress", "Dress"), GarmentPreset("Maxi dress", "Dress"),
+        GarmentPreset("Jumpsuit", "Dress"), GarmentPreset("Saree", "Dress"),
+        GarmentPreset("Jacket", "Outerwear"), GarmentPreset("Coat", "Outerwear"),
+        GarmentPreset("Blazer", "Outerwear"), GarmentPreset("Puffer jacket", "Outerwear"),
+        GarmentPreset("Denim jacket", "Outerwear"), GarmentPreset("Raincoat", "Outerwear"),
+        GarmentPreset("Windbreaker", "Outerwear"), GarmentPreset("Vest", "Outerwear"),
+        GarmentPreset("Underwear", "Underwear"), GarmentPreset("Boxers", "Underwear"),
+        GarmentPreset("Bra", "Underwear"), GarmentPreset("Undershirt", "Underwear"),
+        GarmentPreset("Socks", "Underwear"),
+        GarmentPreset("Pajamas", "Sleepwear"), GarmentPreset("Nightgown", "Sleepwear"),
+        GarmentPreset("Robe", "Sleepwear"),
+        GarmentPreset("Scarf", "Accessory"), GarmentPreset("Hat", "Accessory"),
+        GarmentPreset("Cap", "Accessory"), GarmentPreset("Beanie", "Accessory"),
+        GarmentPreset("Belt", "Accessory"), GarmentPreset("Tie", "Accessory"),
+        GarmentPreset("Gloves", "Accessory"), GarmentPreset("Shawl", "Accessory"),
+        GarmentPreset("Sneakers", "Footwear"), GarmentPreset("Boots", "Footwear"),
+        GarmentPreset("Sandals", "Footwear"), GarmentPreset("Loafers", "Footwear"),
+        GarmentPreset("Slippers", "Footwear"),
+        // Bedding and other soft furnishings - not worn, but laundered the same way.
+        GarmentPreset("Bedsheet", "Bedding"), GarmentPreset("Fitted sheet", "Bedding"),
+        GarmentPreset("Pillowcase", "Bedding"), GarmentPreset("Duvet cover", "Bedding"),
+        GarmentPreset("Comforter", "Bedding"), GarmentPreset("Quilt", "Bedding"),
+        GarmentPreset("Blanket", "Bedding"), GarmentPreset("Mattress protector", "Bedding"),
+        GarmentPreset("Bed skirt", "Bedding"), GarmentPreset("Towel", "Bedding"),
         // Cold-weather pieces (auto-tagged as winter wear, see isWinterWear).
-        GarmentPreset("Jumper", ClothingType.TOP), GarmentPreset("Turtleneck", ClothingType.TOP),
-        GarmentPreset("Thermal top", ClothingType.UNDERWEAR),
-        GarmentPreset("Parka", ClothingType.OUTERWEAR), GarmentPreset("Long coat", ClothingType.OUTERWEAR),
-        GarmentPreset("Trench coat", ClothingType.OUTERWEAR), GarmentPreset("Overcoat", ClothingType.OUTERWEAR),
-        GarmentPreset("Fleece jacket", ClothingType.OUTERWEAR),
-        GarmentPreset("Muffler", ClothingType.ACCESSORY),
+        GarmentPreset("Jumper", "Top"), GarmentPreset("Turtleneck", "Top"),
+        GarmentPreset("Thermal top", "Underwear"),
+        GarmentPreset("Parka", "Outerwear"), GarmentPreset("Long coat", "Outerwear"),
+        GarmentPreset("Trench coat", "Outerwear"), GarmentPreset("Overcoat", "Outerwear"),
+        GarmentPreset("Fleece jacket", "Outerwear"),
+        GarmentPreset("Muffler", "Accessory"),
     )
 
     /**
@@ -90,8 +106,22 @@ object Suggestions {
         return (history + presets).filter { it.isNotBlank() && seen.add(it.trim().lowercase()) }
     }
 
-    fun categoryFor(garmentType: String): ClothingType? =
+    fun categoryFor(garmentType: String): String? =
         garmentTypes.firstOrNull { it.name.equals(garmentType.trim(), ignoreCase = true) }?.category
+
+    /**
+     * Normalizes a category for display. Values typed through the current free-text field keep
+     * exactly the casing the person used; values left over from when this was a fixed enum
+     * ("TOP", "OTHER"...) are ALL CAPS, so those are Title Cased instead.
+     */
+    fun displayCategory(raw: String): String {
+        val trimmed = raw.trim()
+        return when {
+            trimmed.isEmpty() -> "Other"
+            trimmed == trimmed.uppercase() -> trimmed.lowercase().replaceFirstChar { it.uppercase() }
+            else -> trimmed
+        }
+    }
 
     fun colorArgb(name: String): Long? =
         colors.firstOrNull { it.first.equals(name.trim(), ignoreCase = true) }?.second

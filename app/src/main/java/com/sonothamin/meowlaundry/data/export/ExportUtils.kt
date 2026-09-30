@@ -7,6 +7,7 @@ import android.provider.DocumentsContract
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.sonothamin.meowlaundry.data.ClothingItem
+import com.sonothamin.meowlaundry.data.Suggestions
 import com.sonothamin.meowlaundry.data.LaundryTicket
 import java.io.File
 import java.io.OutputStream
@@ -30,7 +31,7 @@ object ExportUtils {
                 item.brand ?: "",
                 item.garmentType ?: "",
                 item.color ?: "",
-                item.type.name,
+                Suggestions.displayCategory(item.type),
                 item.status.name,
                 item.quantity.toString(),
                 item.price?.toString() ?: "",
@@ -80,7 +81,7 @@ object ExportUtils {
     }
 
     fun clothingSummaryText(items: List<ClothingItem>): String =
-        "MeowLaundry closet (${items.size} item(s)):\n" + items.joinToString("\n") { "- ${it.title} (${it.type})" }
+        "MeowLaundry closet (${items.size} item(s)):\n" + items.joinToString("\n") { "- ${it.title} (${Suggestions.displayCategory(it.type)})" }
 
     fun ticketsSummaryText(tickets: List<LaundryTicket>): String =
         "MeowLaundry history (${tickets.size} ticket(s)):\n" + tickets.joinToString("\n") {
