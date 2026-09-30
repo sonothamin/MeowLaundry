@@ -1,8 +1,12 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.sonothamin.meowlaundry.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
@@ -32,8 +36,10 @@ fun MeowLaundryTheme(
 
     val typography = remember(uiFont) { typographyFor(context, uiFont) }
 
-    MaterialTheme(
+    // Expressive theme: brings the springy expressive motion scheme to every M3 component.
+    MaterialExpressiveTheme(
         colorScheme = colorScheme,
+        motionScheme = MotionScheme.expressive(),
         typography = typography,
         shapes = AppShapes,
         content = content,

@@ -8,9 +8,14 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Room exports its schema here; commit the generated JSON so migrations can be verified.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "com.sonothamin.meowlaundry"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.sonothamin.meowlaundry"

@@ -38,12 +38,12 @@ jobs:
           ls "$ANDROID_HOME/build-tools" || true
 
       # This repo doesn't commit a Gradle wrapper jar, so we install and use
-      # a pinned system Gradle instead of ./gradlew. setup-gradle also
+      # a pinned system Gradle (AGP 8.13 needs 8.13+) instead of ./gradlew. setup-gradle also
       # handles dependency caching for us.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.14.3"
 
       - name: Unit tests
         run: gradle testDebugUnitTest --stacktrace

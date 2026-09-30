@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.sonothamin.meowlaundry.ui.laundry
 
 import android.text.format.DateUtils
@@ -50,7 +52,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -195,7 +198,7 @@ fun TicketDetailScreen(
                     }
                     IconButton(onClick = viewModel::printTicket, enabled = !state.isPrinting) {
                         if (state.isPrinting) {
-                            CircularProgressIndicator(modifier = Modifier.padding(Spacing.sm))
+                            LoadingIndicator(modifier = Modifier.padding(Spacing.sm))
                         } else {
                             Icon(Icons.Default.Print, contentDescription = "Print ticket")
                         }
