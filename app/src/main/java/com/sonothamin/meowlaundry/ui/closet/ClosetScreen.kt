@@ -4,7 +4,13 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,7 +30,17 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DryCleaning
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Hiking
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material.icons.filled.Woman
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GridView
@@ -43,7 +59,9 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material3.IconButton
@@ -58,9 +76,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -68,6 +89,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonothamin.meowlaundry.data.ClosetViewMode
 import com.sonothamin.meowlaundry.data.ClosetSortOption
 import com.sonothamin.meowlaundry.data.ClothingStatus
+import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.data.export.ExportUtils
 import com.sonothamin.meowlaundry.data.CurrencyAmount
 import com.sonothamin.meowlaundry.data.Currencies
@@ -97,6 +119,8 @@ fun ClosetScreen(
     val paged by viewModel.paged.collectAsStateWithLifecycle()
     val items = paged.items
     val filter by viewModel.filter.collectAsStateWithLifecycle()
+    val typeFilter by viewModel.typeFilter.collectAsStateWithLifecycle()
+    val typeCounts by viewModel.typeCounts.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
     val showWinterWear by viewModel.showWinterWear.collectAsStateWithLifecycle()
@@ -243,13 +267,22 @@ fun ClosetScreen(
                         atLaundry = summary.atLaundryCount,
                         lost = summary.lostCount,
                         lostValues = summary.lostValues,
-                        onInClosetClick = { viewModel.setFilter(ClothingStatus.IN_CLOSET) },
+                        inClosetSelected = filter == ClothingStatus.IN_CLOSET,
+                        // Tapping the tile again clears it - the old "All" status chip is gone.
+                        onInClosetClick = {
+                            viewModel.setFilter(if (filter == ClothingStatus.IN_CLOSET) null else ClothingStatus.IN_CLOSET)
+                        },
                         onAtLaundryClick = onOpenAtLaundry,
                         onLostClick = onOpenLostArchive,
                         modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
                     )
                 }
-                FilterRow(selected = filter, onSelect = viewModel::setFilter)
+                TypeFilterRow(
+                    counts = typeCounts,
+                    selected = typeFilter,
+                    onToggle = viewModel::toggleType,
+                    onClear = viewModel::clearTypes,
+                )
                 if (searchActive) {
                     SortRow(selected = sortOption, onSelect = viewModel::setSortOption)
                 }
@@ -337,6 +370,7 @@ private fun ClosetSummaryBlock(
     atLaundry: Int,
     lost: Int,
     lostValues: List<CurrencyAmount>,
+    inClosetSelected: Boolean,
     onInClosetClick: () -> Unit,
     onAtLaundryClick: () -> Unit,
     onLostClick: () -> Unit,
@@ -349,6 +383,7 @@ private fun ClosetSummaryBlock(
             value = inCloset.toString(),
             label = "In closet",
             active = inCloset > 0,
+            selected = inClosetSelected,
             onClick = onInClosetClick,
             modifier = Modifier.weight(1f),
         )
@@ -380,10 +415,20 @@ private fun StatTile(
     active: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The tile's own status filter is applied: shown in the stronger primary role. */
+    selected: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val container = if (active) scheme.primaryContainer else scheme.surfaceContainerHigh
-    val content = if (active) scheme.onPrimaryContainer else scheme.onSurfaceVariant
+    val container = when {
+        selected -> scheme.primary
+        active -> scheme.primaryContainer
+        else -> scheme.surfaceContainerHigh
+    }
+    val content = when {
+        selected -> scheme.onPrimary
+        active -> scheme.onPrimaryContainer
+        else -> scheme.onSurfaceVariant
+    }
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = MaterialTheme.shapes.large,
@@ -441,35 +486,104 @@ private fun sortLabel(option: ClosetSortOption): String = when (option) {
     ClosetSortOption.PRICE_LOW -> "Price: low\u2013high"
 }
 
+/**
+ * Category filter. Collapsed it is one scrolling row of chips with a trailing expand button;
+ * expanded the same chips wrap into a grid so every category is visible at once. Multi-select:
+ * nothing selected means "All". Size changes and the chevron use spring motion (Expressive).
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FilterRow(selected: ClothingStatus?, onSelect: (ClothingStatus?) -> Unit) {
+private fun TypeFilterRow(
+    counts: Map<ClothingType, Int>,
+    selected: Set<ClothingType>,
+    onToggle: (ClothingType) -> Unit,
+    onClear: () -> Unit,
+) {
+    // Only categories that actually hold garments (plus any still selected) earn a chip.
+    val types = ClothingType.entries.filter { (counts[it] ?: 0) > 0 || it in selected }
+    if (types.size < 2 && selected.isEmpty()) return
+
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val chevron by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "type-filter-chevron",
+    )
+
+    @Composable
+    fun Chips() {
+        FilterChip(
+            selected = selected.isEmpty(),
+            onClick = onClear,
+            label = { Text("All") },
+            leadingIcon = if (selected.isEmpty()) {
+                { Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+            } else null,
+        )
+        types.forEach { type ->
+            val isSelected = type in selected
+            FilterChip(
+                selected = isSelected,
+                onClick = { onToggle(type) },
+                label = { Text("${typeLabel(type)} \u00B7 ${counts[type] ?: 0}") },
+                leadingIcon = {
+                    Icon(
+                        if (isSelected) Icons.Default.Done else typeIcon(type),
+                        contentDescription = null,
+                        modifier = Modifier.size(FilterChipDefaults.IconSize),
+                    )
+                },
+            )
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(androidx.compose.foundation.rememberScrollState())
-            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            .animateContentSize(
+                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+            )
+            .padding(start = Spacing.md, end = Spacing.sm, top = Spacing.xs, bottom = Spacing.xs),
+        verticalAlignment = Alignment.Top,
     ) {
-        FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("All") })
-        FilterChip(
-            selected = selected == ClothingStatus.IN_CLOSET,
-            onClick = { onSelect(ClothingStatus.IN_CLOSET) },
-            label = { Text("In closet") },
-        )
-        FilterChip(
-            selected = selected == ClothingStatus.AT_LAUNDRY,
-            onClick = { onSelect(ClothingStatus.AT_LAUNDRY) },
-            label = { Text("At laundry") },
-        )
-        FilterChip(
-            selected = selected == ClothingStatus.LOST,
-            onClick = { onSelect(ClothingStatus.LOST) },
-            label = { Text("Lost") },
-        )
-        FilterChip(
-            selected = selected == ClothingStatus.ARCHIVED,
-            onClick = { onSelect(ClothingStatus.ARCHIVED) },
-            label = { Text("Archived") },
-        )
+        if (expanded) {
+            FlowRow(
+                modifier = Modifier.weight(1f).padding(top = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) { Chips() }
+        } else {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(vertical = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) { Chips() }
+        }
+        FilledTonalIconToggleButton(
+            checked = expanded,
+            onCheckedChange = { expanded = it },
+        ) {
+            Icon(
+                Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "Show fewer categories" else "Show all categories",
+                modifier = Modifier.rotate(chevron),
+            )
+        }
     }
+}
+
+private fun typeLabel(type: ClothingType): String = type.name.lowercase().replaceFirstChar { it.uppercase() }
+
+private fun typeIcon(type: ClothingType) = when (type) {
+    ClothingType.TOP -> Icons.Default.Checkroom
+    ClothingType.BOTTOM -> Icons.Default.Straighten
+    ClothingType.DRESS -> Icons.Default.Woman
+    ClothingType.OUTERWEAR -> Icons.Default.Layers
+    ClothingType.UNDERWEAR -> Icons.Default.DryCleaning
+    ClothingType.SLEEPWEAR -> Icons.Default.Bedtime
+    ClothingType.ACCESSORY -> Icons.Default.Watch
+    ClothingType.FOOTWEAR -> Icons.Default.Hiking
+    ClothingType.OTHER -> Icons.Default.Category
 }

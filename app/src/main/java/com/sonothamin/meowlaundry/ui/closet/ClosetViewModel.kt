@@ -9,6 +9,7 @@ import com.sonothamin.meowlaundry.data.ClosetSortOption
 import com.sonothamin.meowlaundry.data.ClosetViewMode
 import com.sonothamin.meowlaundry.data.ClothingItem
 import com.sonothamin.meowlaundry.data.ClothingStatus
+import com.sonothamin.meowlaundry.data.ClothingType
 import com.sonothamin.meowlaundry.ui.paging.PageWindow
 import com.sonothamin.meowlaundry.ui.paging.PagedList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,6 +30,10 @@ class ClosetViewModel(
 
     private val _filter = MutableStateFlow<ClothingStatus?>(null)
     val filter: StateFlow<ClothingStatus?> = _filter
+
+    /** Garment categories to show; empty means "all categories". */
+    private val _typeFilter = MutableStateFlow<Set<ClothingType>>(emptySet())
+    val typeFilter: StateFlow<Set<ClothingType>> = _typeFilter
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
@@ -72,16 +77,28 @@ class ClosetViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * How many garments each category holds within the current status + winter-wear view, before
+     * the category filter itself is applied - so each chip shows what tapping it would reveal.
+     */
+    val typeCounts: StateFlow<Map<ClothingType, Int>> = combine(allItemsForFilter, showWinterWear) { source, showWinter ->
+        source.orEmpty()
+            .filter { showWinter || !it.isWinterWear }
+            .groupingBy { it.type }
+            .eachCount()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /** Everything matching the current filter/search/sort, not just the revealed pages. */
     private val matching: StateFlow<List<ClothingItem>?> = combine(
         allItemsForFilter,
         _searchQuery,
         _sortOption,
         showWinterWear,
-    ) { source, query, sort, showWinter ->
+        _typeFilter,
+    ) { source, query, sort, showWinter, types ->
         if (source == null) return@combine null
         val list: List<ClothingItem> = source
-        val winterFiltered = if (showWinter) list else list.filter { !it.isWinterWear }
+        val winterFiltered = list.filter { (showWinter || !it.isWinterWear) && (types.isEmpty() || it.type in types) }
         val filtered = if (query.isBlank()) winterFiltered
         else winterFiltered.filter { item ->
             listOf(item.title, item.brand, item.color, item.garmentType, item.type.name)
@@ -113,6 +130,16 @@ class ClosetViewModel(
     fun setFilter(status: ClothingStatus?) {
         pageWindow.reset()
         _filter.value = status
+    }
+
+    fun toggleType(type: ClothingType) {
+        pageWindow.reset()
+        _typeFilter.value = _typeFilter.value.let { if (type in it) it - type else it + type }
+    }
+
+    fun clearTypes() {
+        pageWindow.reset()
+        _typeFilter.value = emptySet()
     }
 
     fun setViewMode(mode: ClosetViewMode) {
