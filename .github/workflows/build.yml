@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build:
-    name: Assemble debug APK
+    name: Test and build
     runs-on: ubuntu-latest
 
     steps:
@@ -45,8 +45,16 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
+      - name: Unit tests
+        run: gradle testDebugUnitTest --stacktrace
+
       - name: Assemble debug APK
         run: gradle assembleDebug --stacktrace
+
+      # Release turns on R8 (minify) and lintVital, which debug never exercises: a missing keep
+      # rule or a lint error would otherwise only show up in the shipped app. Unsigned on purpose.
+      - name: Assemble release (R8 + lint check)
+        run: gradle assembleRelease --stacktrace
 
       - name: Verify APK output
         run: |

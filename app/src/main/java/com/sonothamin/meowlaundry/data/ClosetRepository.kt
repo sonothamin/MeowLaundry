@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.data
 
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -9,11 +10,13 @@ import kotlinx.coroutines.flow.first
  * tables (closet + laundry tickets) consistent with each other.
  */
 class ClosetRepository(
-    private val clothingDao: ClothingDao,
-    private val laundryDao: LaundryDao,
+    private val database: AppDatabase,
     private val photoStore: PhotoStore,
-    private val photoDao: ClothingPhotoDao,
 ) {
+    private val clothingDao = database.clothingDao()
+    private val laundryDao = database.laundryDao()
+    private val photoDao = database.photoDao()
+
     // --- Closet ---------------------------------------------------------
 
     fun observeAllClothing(): Flow<List<ClothingItem>> = clothingDao.observeAll()
@@ -335,8 +338,6 @@ class ClosetRepository(
         laundryDao.updateTicket(ticket.copy(status = TicketStatus.CLOSED))
     }
 
-    /** Files garments marked lost under the old scheme into the archive. Safe to run repeatedly. */
-    suspend fun migrateLegacyLost() = clothingDao.archiveLegacyLost()
 
     /**
      * Undoes [closeTicket]: puts the ticket back to the state its garments imply
@@ -452,8 +453,6 @@ class ClosetRepository(
                     id = it.id,
                     ticketId = it.ticketId,
                     clothingItemId = it.clothingItemId,
-                    returned = it.returned,
-                    lost = it.lost,
                     returnedAt = it.returnedAt,
                     quantity = it.quantity,
                     returnedQuantity = it.returnedQuantity,
@@ -463,84 +462,80 @@ class ClosetRepository(
         )
     }
 
-    /** Replaces everything currently in the database with the contents of [payload]. */
+    /**
+     * Replaces everything currently in the database with the contents of [payload].
+     *
+     * The payload is fully checked and converted before the database is touched, and the swap
+     * itself is one transaction, so a bad or corrupt backup fails with the current data intact.
+     */
     suspend fun importAll(payload: BackupPayload) {
-        clothingDao.deleteAll() // cascades to clothing_item_photos rows
-        clearAllTickets()
-
-        clothingDao.upsertAll(
-            payload.clothingItems.map {
-                ClothingItem(
-                    id = it.id,
-                    title = it.title,
-                    type = ClothingType.valueOf(it.type),
-                    imagePath = it.imagePath,
-                    price = it.price,
-                    status = ClothingStatus.valueOf(it.status),
-                    notes = it.notes,
-                    createdAt = it.createdAt,
-                    updatedAt = it.updatedAt,
-                    archiveReason = it.archiveReason?.let { r -> runCatching { ArchiveReason.valueOf(r) }.getOrNull() },
-                    archivedAt = it.archivedAt,
-                    archiveNotes = it.archiveNotes,
-                    brand = it.brand,
-                    garmentType = it.garmentType,
-                    color = it.color,
-                    currency = it.currency,
-                    isWinterWear = it.isWinterWear,
-                    quantity = it.quantity.coerceAtLeast(1),
-                )
-            }
-        )
-        payload.clothingItems.forEach { item ->
-            if (item.photos.isNotEmpty()) {
-                photoDao.insertAll(
-                    item.photos.map { p ->
-                        ClothingItemPhoto(
-                            clothingItemId = item.id,
-                            path = p.path,
-                            isPrimary = p.isPrimary,
-                            sortOrder = p.sortOrder,
-                        )
-                    }
-                )
+        val items = payload.clothingItems.map {
+            ClothingItem(
+                id = it.id,
+                title = it.title,
+                type = backupEnum<ClothingType>(it.type, "garment type"),
+                imagePath = it.imagePath,
+                price = it.price,
+                status = backupEnum<ClothingStatus>(it.status, "garment status"),
+                notes = it.notes,
+                createdAt = it.createdAt,
+                updatedAt = it.updatedAt,
+                archiveReason = it.archiveReason?.let { r -> backupEnum<ArchiveReason>(r, "archive reason") },
+                archivedAt = it.archivedAt,
+                archiveNotes = it.archiveNotes,
+                brand = it.brand,
+                garmentType = it.garmentType,
+                color = it.color,
+                currency = it.currency,
+                isWinterWear = it.isWinterWear,
+                quantity = it.quantity.coerceAtLeast(1),
+            )
+        }
+        val photos = payload.clothingItems.flatMap { item ->
+            item.photos.map { p ->
+                ClothingItemPhoto(clothingItemId = item.id, path = p.path, isPrimary = p.isPrimary, sortOrder = p.sortOrder)
             }
         }
-        laundryDao.upsertTickets(
-            payload.tickets.map {
-                LaundryTicket(
-                    id = it.id,
-                    serviceType = ServiceType.valueOf(it.serviceType),
-                    providerName = it.providerName,
-                    sentAt = it.sentAt,
-                    expectedReturnAt = it.expectedReturnAt,
-                    receivedAt = it.receivedAt,
-                    status = TicketStatus.valueOf(it.status),
-                    notes = it.notes,
-                )
-            }
-        )
-        laundryDao.upsertTicketItems(
-            payload.ticketItems.map {
-                // Older backups have no quantities: one unit, back or lost according to the flags.
-                val q = it.quantity.coerceAtLeast(1)
-                val returnedQ = (it.returnedQuantity ?: if (it.returned) q else 0).coerceIn(0, q)
-                val lostQ = (it.lostQuantity ?: if (it.lost) q else 0).coerceIn(0, q - returnedQ)
-                LaundryTicketItem(
-                    id = it.id,
-                    ticketId = it.ticketId,
-                    clothingItemId = it.clothingItemId,
-                    returnedAt = it.returnedAt,
-                    quantity = q,
-                    returnedQuantity = returnedQ,
-                    lostQuantity = lostQ,
-                ).synced()
-            }
-        )
-        // The article counts are caches of the ticket rows, so rebuild them for everything imported.
-        payload.clothingItems.forEach { recomputeCounts(it.id) }
-        clothingDao.archiveLegacyLost()
+        val tickets = payload.tickets.map {
+            LaundryTicket(
+                id = it.id,
+                serviceType = backupEnum<ServiceType>(it.serviceType, "service type"),
+                providerName = it.providerName,
+                sentAt = it.sentAt,
+                expectedReturnAt = it.expectedReturnAt,
+                receivedAt = it.receivedAt,
+                status = backupEnum<TicketStatus>(it.status, "ticket status"),
+                notes = it.notes,
+            )
+        }
+        val ticketItems = payload.ticketItems.map {
+            val q = it.quantity.coerceAtLeast(1)
+            val returnedQ = it.returnedQuantity.coerceIn(0, q)
+            LaundryTicketItem(
+                id = it.id,
+                ticketId = it.ticketId,
+                clothingItemId = it.clothingItemId,
+                returnedAt = it.returnedAt,
+                quantity = q,
+                returnedQuantity = returnedQ,
+                lostQuantity = it.lostQuantity.coerceIn(0, q - returnedQ),
+            ).synced()
+        }
+
+        database.withTransaction {
+            clothingDao.deleteAll() // cascades to clothing_item_photos rows
+            clearAllTickets()
+            clothingDao.upsertAll(items)
+            if (photos.isNotEmpty()) photoDao.insertAll(photos)
+            laundryDao.upsertTickets(tickets)
+            laundryDao.upsertTicketItems(ticketItems)
+            // The article counts are caches of the ticket rows, so rebuild them for everything imported.
+            items.forEach { recomputeCounts(it.id) }
+        }
     }
+
+    private inline fun <reified E : Enum<E>> backupEnum(name: String, what: String): E =
+        enumValues<E>().firstOrNull { it.name == name } ?: error("This backup has an unknown $what: \"$name\"")
 
     private suspend fun allClothingSnapshot(): List<ClothingItem> = clothingDao.observeAll().first()
 

@@ -48,7 +48,7 @@ class MeowLaundryApp : Application() {
         super.onCreate()
         database = AppDatabase.getInstance(this)
         photoStore = PhotoStore(this)
-        repository = ClosetRepository(database.clothingDao(), database.laundryDao(), photoStore, database.photoDao())
+        repository = ClosetRepository(database, photoStore)
         printPreferences = PrintPreferences(this)
         appPreferences = AppPreferences(this)
         backupManager = BackupManager(this, repository)
@@ -56,7 +56,6 @@ class MeowLaundryApp : Application() {
 
         Reminders.createChannel(this)
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-            repository.migrateLegacyLost()
             repository.purgeEmptyTickets()
             Reminders.sync(this@MeowLaundryApp)
         }

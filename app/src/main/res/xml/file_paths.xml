@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
+    <!-- Camera captures land here before they are added to a garment. -->
     <files-path name="clothing_photos" path="clothing_photos/" />
-    <cache-path name="cache" path="." />
-    <external-cache-path name="external_cache" path="." />
+    <!-- Files handed to other apps: exports (PDF/CSV) and the label image sent to MeowSpool. -->
+    <cache-path name="exports" path="exports/" />
+    <cache-path name="print_share" path="print_share/" />
 </paths>

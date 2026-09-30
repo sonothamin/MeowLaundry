@@ -106,11 +106,10 @@ interface ClothingDao {
 
     // Lost units per article: whatever the laundry tickets recorded as lost, or - for an article that
     // was archived as lost (by a ticket or by hand) - all of its units, whichever is larger. A fully
-    // lost article has lostQuantity == quantity, so nothing is counted twice. The old LOST status is
-    // still counted so nothing is missed until archiveLegacyLost() has moved those garments over.
+    // lost article has lostQuantity == quantity, so nothing is counted twice.
     @Query(
         """
-        SELECT COALESCE(SUM(MAX(lostQuantity, CASE WHEN status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST') THEN quantity ELSE 0 END)), 0)
+        SELECT COALESCE(SUM(MAX(lostQuantity, CASE WHEN status = 'ARCHIVED' AND archiveReason = 'LOST' THEN quantity ELSE 0 END)), 0)
         FROM clothing_items
         """
     )
@@ -119,27 +118,16 @@ interface ClothingDao {
     @Query(
         """
         SELECT currency AS currency,
-               COALESCE(SUM(price * MAX(lostQuantity, CASE WHEN status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST') THEN quantity ELSE 0 END)), 0.0) AS total
+               COALESCE(SUM(price * MAX(lostQuantity, CASE WHEN status = 'ARCHIVED' AND archiveReason = 'LOST' THEN quantity ELSE 0 END)), 0.0) AS total
         FROM clothing_items
         WHERE price IS NOT NULL
-          AND MAX(lostQuantity, CASE WHEN status = 'LOST' OR (status = 'ARCHIVED' AND archiveReason = 'LOST') THEN quantity ELSE 0 END) > 0
+          AND MAX(lostQuantity, CASE WHEN status = 'ARCHIVED' AND archiveReason = 'LOST' THEN quantity ELSE 0 END) > 0
         GROUP BY currency
         ORDER BY total DESC
         """
     )
     fun observeLostValueByCurrency(): Flow<List<CurrencyAmount>>
 
-    /** One-time tidy-up: garments marked lost before losses went to the archive get archived as lost. */
-    @Query(
-        """
-        UPDATE clothing_items
-        SET status = 'ARCHIVED', archiveReason = 'LOST',
-            archivedAt = COALESCE(archivedAt, updatedAt),
-            archiveNotes = COALESCE(archiveNotes, 'Lost at the laundry')
-        WHERE status = 'LOST'
-        """
-    )
-    suspend fun archiveLegacyLost()
 }
 
 @Dao

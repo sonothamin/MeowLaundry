@@ -46,52 +46,73 @@ class BackupManager(
         } ?: error("Could not open destination file for writing")
     }
 
-    /** Restores from a .zip created by [exportTo]. This replaces all current data. */
+    /**
+     * Restores from a .zip created by [exportTo]. This replaces all current data - but only once
+     * the whole backup has been read and validated: if anything is wrong, the current closet is
+     * left untouched and the photos copied so far are removed again.
+     */
     suspend fun importFrom(source: Uri) {
         val photosDir = File(context.filesDir, "clothing_photos").apply { mkdirs() }
+        val photosRoot = photosDir.canonicalFile
+        val addedPhotos = mutableListOf<File>()
         var payload: BackupPayload? = null
-        val pathRemap = mutableMapOf<String, String>() // original absolute path -> restored path
 
-        context.contentResolver.openInputStream(source)?.use { input ->
-            ZipInputStream(input).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
-                    when {
-                        entry.name == "backup.json" -> {
-                            val bytes = zip.readBytes()
-                            payload = json.decodeFromString(BackupPayload.serializer(), String(bytes))
+        try {
+            context.contentResolver.openInputStream(source)?.use { input ->
+                ZipInputStream(input).use { zip ->
+                    var entry = zip.nextEntry
+                    while (entry != null) {
+                        when {
+                            entry.name == "backup.json" ->
+                                payload = json.decodeFromString(BackupPayload.serializer(), String(zip.readBytes()))
+                            entry.name.startsWith("photos/") -> {
+                                // Only the file's own name is used, never the path inside the zip, and the
+                                // result must stay inside the photos folder (a crafted "../" entry could
+                                // otherwise overwrite the app's database or settings).
+                                val name = File(entry.name.removePrefix("photos/")).name
+                                val dest = File(photosDir, name)
+                                if (name.isNotBlank() && dest.canonicalFile.parentFile == photosRoot) {
+                                    val existed = dest.exists()
+                                    dest.outputStream().use { zip.copyTo(it) }
+                                    if (!existed) addedPhotos += dest
+                                }
+                            }
                         }
-                        entry.name.startsWith("photos/") -> {
-                            val fileName = entry.name.removePrefix("photos/")
-                            val destFile = File(photosDir, fileName)
-                            destFile.outputStream().use { zip.copyTo(it) }
-                        }
+                        zip.closeEntry()
+                        entry = zip.nextEntry
                     }
-                    zip.closeEntry()
-                    entry = zip.nextEntry
                 }
+            } ?: error("Could not open backup file for reading")
+
+            val loaded = payload ?: error("backup.json missing from archive")
+
+            // Re-point every path at the freshly restored file in this install's files dir.
+            fun remapPath(original: String?): String? {
+                if (original.isNullOrBlank()) return null
+                val restored = File(photosDir, File(original).name)
+                return if (restored.exists()) restored.absolutePath else null
             }
-        } ?: error("Could not open backup file for reading")
+            val remapped = loaded.copy(
+                clothingItems = loaded.clothingItems.map { item ->
+                    item.copy(
+                        imagePath = remapPath(item.imagePath),
+                        photos = item.photos.mapNotNull { photo ->
+                            remapPath(photo.path)?.let { photo.copy(path = it) }
+                        },
+                    )
+                }
+            )
 
-        val loaded = payload ?: error("backup.json missing from archive")
+            repository.importAll(remapped)
 
-        // Re-point every path at the freshly restored file in this install's files dir.
-        fun remapPath(original: String?): String? {
-            if (original.isNullOrBlank()) return null
-            val restored = File(photosDir, File(original).name)
-            return if (restored.exists()) restored.absolutePath else null
+            // The restore replaced everything, so photos the backup doesn't use are now orphans.
+            val keep = remapped.clothingItems
+                .flatMap { item -> item.photos.map { it.path } + listOfNotNull(item.imagePath) }
+                .toSet()
+            photosDir.listFiles()?.filter { it.isFile && it.absolutePath !in keep }?.forEach { it.delete() }
+        } catch (e: Exception) {
+            addedPhotos.forEach { it.delete() }
+            throw e
         }
-        val remapped = loaded.copy(
-            clothingItems = loaded.clothingItems.map { item ->
-                item.copy(
-                    imagePath = remapPath(item.imagePath),
-                    photos = item.photos.mapNotNull { photo ->
-                        remapPath(photo.path)?.let { photo.copy(path = it) }
-                    },
-                )
-            }
-        )
-
-        repository.importAll(remapped)
     }
 }

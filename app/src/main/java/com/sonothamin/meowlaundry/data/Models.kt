@@ -213,15 +213,12 @@ data class BackupClothingItem(
     val archivedAt: Long? = null,
     val archiveNotes: String? = null,
     val photos: List<BackupPhoto> = emptyList(),
-    // Added in DB v3; defaults keep older backups importable.
     val brand: String? = null,
     val garmentType: String? = null,
     val color: String? = null,
-    val currency: String = "USD",
-    // Added in DB v4; defaults keep older backups importable.
-    val isWinterWear: Boolean = false,
-    // Added in DB v5 (quantities); older backups import as single units.
-    val quantity: Int = 1,
+    val currency: String,
+    val isWinterWear: Boolean,
+    val quantity: Int,
 )
 
 @Serializable
@@ -248,11 +245,8 @@ data class BackupTicketItem(
     val id: Long,
     val ticketId: Long,
     val clothingItemId: Long,
-    val returned: Boolean,
-    val lost: Boolean,
     val returnedAt: Long?,
-    // Added in DB v5 (quantities). Older backups: null means "derive from the returned/lost flags".
-    val quantity: Int = 1,
-    val returnedQuantity: Int? = null,
-    val lostQuantity: Int? = null,
+    val quantity: Int,
+    val returnedQuantity: Int,
+    val lostQuantity: Int,
 )

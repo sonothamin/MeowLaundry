@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      The app's only network traffic is to the MeowSpool print server the person points it at,
+      which speaks plain http on their local network (a LAN IP can't have a certificate, and
+      this config can't express "private address ranges" only). Android blocks cleartext by
+      default, so without this the "IP" print method fails. Nothing else in the app fetches URLs.
+    -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

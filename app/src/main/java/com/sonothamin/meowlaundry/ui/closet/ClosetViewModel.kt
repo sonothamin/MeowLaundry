@@ -63,10 +63,8 @@ class ClosetViewModel(
                 // and live in the Archive screen so they don't clutter the everyday view.
                 null -> repository.observeAllClothing().map { list -> list.filter { it.status != ClothingStatus.ARCHIVED } }
                 // Lost garments live in the archive (reason "Lost"); the chip is a shortcut to them.
-                ClothingStatus.LOST -> combine(
-                    repository.observeClothingByStatus(ClothingStatus.LOST),
-                    repository.observeArchivedByReason(ArchiveReason.LOST),
-                ) { legacy, archived -> legacy + archived }
+                // (LOST is only the chip's key: no garment is ever stored with that status.)
+                ClothingStatus.LOST -> repository.observeArchivedByReason(ArchiveReason.LOST)
                 // A multi-unit article with some units out counts as "at laundry" too, even though the rest are home.
                 ClothingStatus.AT_LAUNDRY -> repository.observeAtLaundry()
                 else -> repository.observeClothingByStatus(status)
