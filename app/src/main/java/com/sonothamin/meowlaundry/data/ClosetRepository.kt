@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
  * Single entry point the ViewModels talk to. Keeps Room, photo files and the two related
@@ -55,6 +56,18 @@ class ClosetRepository(
 
     fun observeBrandHistory(): Flow<List<String>> = clothingDao.observeBrands()
     fun observeGarmentTypeHistory(): Flow<List<String>> = clothingDao.observeGarmentTypes()
+
+    /**
+     * Garment type (lowercased) -> the category last used for it, so the edit form can auto-select
+     * a category from what the person actually chose before instead of only the built-in presets
+     * in [Suggestions.categoryFor]. Rows come back most-recently-updated first, and [distinctBy]
+     * keeps the first (= most recent) entry per garment type when the same one was used more than once.
+     */
+    fun observeCategoryByGarmentType(): Flow<Map<String, String>> =
+        clothingDao.observeGarmentTypeCategoryPairs().map { rows ->
+            rows.distinctBy { it.garmentType.trim().lowercase() }
+                .associate { it.garmentType.trim().lowercase() to it.type }
+        }
     fun observeColorHistory(): Flow<List<String>> = clothingDao.observeColors()
 
     /**

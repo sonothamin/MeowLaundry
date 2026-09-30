@@ -94,6 +94,10 @@ class ItemEditViewModel(
         .map { Suggestions.merge(it, Suggestions.colors.map { c -> c.first }) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Suggestions.colors.map { it.first })
 
+    /** Garment type (lowercased) -> category last used for it - see [onGarmentTypeChange]. */
+    private val categoryHistory: StateFlow<Map<String, String>> = repository.observeCategoryByGarmentType()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /** Applies [transform], then keeps the title in step with brand/color/type unless customised. */
     private fun edit(transform: (ItemEditUiState) -> ItemEditUiState) {
         _state.update { current ->
@@ -177,7 +181,14 @@ class ItemEditViewModel(
 
     fun onGarmentTypeChange(value: String) {
         edit { current ->
-            val category = if (categoryTouched) null else Suggestions.categoryFor(value)
+            // Whatever category the person filed this exact garment type under before wins over
+            // the generic built-in preset - it's their own past choice for this specific type,
+            // including types (like "Kaftan") that aren't in the presets at all.
+            val category = if (categoryTouched) {
+                null
+            } else {
+                categoryHistory.value[value.trim().lowercase()] ?: Suggestions.categoryFor(value)
+            }
             current.copy(garmentType = value, type = category ?: current.type)
         }
     }

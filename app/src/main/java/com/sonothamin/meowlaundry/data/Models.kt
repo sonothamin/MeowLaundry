@@ -88,6 +88,9 @@ data class ClothingItem(
 /** Just enough of a garment to draw its thumbnail - avoids loading whole rows for photo lookups. */
 data class ItemThumb(val id: Long, val imagePath: String?)
 
+/** One garment type the person has entered before, and which category they filed it under. */
+data class GarmentTypeCategoryRow(val garmentType: String, val type: String)
+
 /**
  * One time a garment went to the laundry, flattened with the ticket it belonged to so the article
  * screen can build "last washed / last pressed" and its activity feed without extra lookups.

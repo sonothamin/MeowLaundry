@@ -53,6 +53,18 @@ interface ClothingDao {
     @Query("SELECT color FROM clothing_items WHERE color IS NOT NULL AND TRIM(color) != '' GROUP BY LOWER(color) ORDER BY COUNT(*) DESC, color COLLATE NOCASE")
     fun observeColors(): Flow<List<String>>
 
+    /**
+     * Every (garment type, category) pair the person has actually used, most recently updated
+     * first - lets the edit form auto-select whatever category they picked last time for a given
+     * garment type, even one that isn't in the built-in presets. See
+     * [com.sonothamin.meowlaundry.data.ClosetRepository.observeCategoryByGarmentType].
+     */
+    @Query(
+        "SELECT garmentType, type FROM clothing_items " +
+            "WHERE garmentType IS NOT NULL AND TRIM(garmentType) != '' ORDER BY updatedAt DESC"
+    )
+    fun observeGarmentTypeCategoryPairs(): Flow<List<GarmentTypeCategoryRow>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: ClothingItem): Long
 
