@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
 @Database(
     entities = [ClothingItem::class, LaundryTicket::class, LaundryTicketItem::class, ClothingItemPhoto::class],
     version = 5,
-    exportSchema = false,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -24,14 +24,14 @@ abstract class AppDatabase : RoomDatabase() {
         private var instance: AppDatabase? = null
 
         /**
-         * Pre-release: there are no migrations. Any schema change wipes the local database on the
-         * next launch (Settings -> Backup restores it). Before the first public release, replace
-         * the destructive fallback with real migrations, turn on exportSchema, and test them.
+         * Version 5 is the first public schema. Only the pre-release dev versions (1-4) may be
+         * wiped on upgrade; from 5 onward every schema change MUST ship a Migration (schemas are
+         * exported to app/schemas/ - commit them), otherwise Room throws instead of losing data.
          */
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DB_NAME)
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1, 2, 3, 4)
                     .build()
                     .also { instance = it }
             }

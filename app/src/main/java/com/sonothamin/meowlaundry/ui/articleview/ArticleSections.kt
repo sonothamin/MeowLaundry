@@ -195,13 +195,13 @@ internal fun Modifier.pageSwipe(navState: ArticleNavState, onSwipe: (Long, Boole
                 onDragEnd = {
                     val nav = latestNavState.value
                     val offset = dragOffset.value
-                    val goPrevious = offset > swipeThresholdPx && nav.previousId != null
-                    val goNext = offset < -swipeThresholdPx && nav.nextId != null
+                    val previousId = nav.previousId.takeIf { offset > swipeThresholdPx }
+                    val nextId = nav.nextId.takeIf { offset < -swipeThresholdPx }
+                    val targetId = previousId ?: nextId
                     scope.launch {
-                        if (goPrevious || goNext) {
-                            dragOffset.animateTo(if (goPrevious) pageWidthPx else -pageWidthPx, tween(160))
-                            val id = if (goPrevious) nav.previousId!! else nav.nextId!!
-                            latestOnSwipe.value(id, goNext)
+                        if (targetId != null) {
+                            dragOffset.animateTo(if (previousId != null) pageWidthPx else -pageWidthPx, tween(160))
+                            latestOnSwipe.value(targetId, previousId == null)
                         } else {
                             dragOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
                         }
@@ -464,7 +464,7 @@ internal fun DetailsCard(item: ClothingItem, photoCount: Int, expanded: Boolean,
                 )
             }
             if (expanded) {
-                listOf(
+                listOf<Pair<String, String?>>(
                     "Category" to categoryLabel(item),
                     "Garment type" to item.garmentType,
                     "Brand" to item.brand,
@@ -472,9 +472,10 @@ internal fun DetailsCard(item: ClothingItem, photoCount: Int, expanded: Boolean,
                     "Photos" to if (photoCount == 0) "None" else "$photoCount",
                     "Added" to stamp(item.createdAt),
                     "Last updated" to item.updatedAt.takeIf { it != item.createdAt }?.let(::stamp),
-                ).filter { !it.second.isNullOrBlank() }.forEach { (label, value) ->
+                ).forEach { (label, value) ->
+                    if (value.isNullOrBlank()) return@forEach
                     HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))
-                    DetailRow(label, value!!)
+                    DetailRow(label, value)
                 }
                 if (item.status == ClothingStatus.ARCHIVED) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))

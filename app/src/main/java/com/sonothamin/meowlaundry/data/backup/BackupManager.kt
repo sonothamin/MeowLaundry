@@ -21,6 +21,27 @@ class BackupManager(
 ) {
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
+    private companion object {
+        /** backup.json is text; 32 MB is far beyond any real closet and stops zip bombs. */
+        const val MAX_JSON_BYTES = 32L * 1024 * 1024
+        /** Per-photo and whole-archive ceilings, enforced while streaming (declared sizes can lie). */
+        const val MAX_PHOTO_BYTES = 64L * 1024 * 1024
+        const val MAX_TOTAL_BYTES = 2L * 1024 * 1024 * 1024
+    }
+
+    /** Copies at most [limit] bytes; throws if the stream holds more. Returns bytes copied. */
+    private fun java.io.InputStream.copyLimited(out: java.io.OutputStream, limit: Long): Long {
+        val buf = ByteArray(8 * 1024)
+        var total = 0L
+        while (true) {
+            val n = read(buf)
+            if (n < 0) return total
+            total += n
+            if (total > limit) error("Backup is too large or corrupt")
+            out.write(buf, 0, n)
+        }
+    }
+
     suspend fun exportTo(destination: Uri) {
         val payload = repository.exportAll()
         val jsonBytes = json.encodeToString(BackupPayload.serializer(), payload).toByteArray()
@@ -56,6 +77,7 @@ class BackupManager(
         val photosRoot = photosDir.canonicalFile
         val addedPhotos = mutableListOf<File>()
         var payload: BackupPayload? = null
+        var totalBytes = 0L
 
         try {
             context.contentResolver.openInputStream(source)?.use { input ->
@@ -63,8 +85,11 @@ class BackupManager(
                     var entry = zip.nextEntry
                     while (entry != null) {
                         when {
-                            entry.name == "backup.json" ->
-                                payload = json.decodeFromString(BackupPayload.serializer(), String(zip.readBytes()))
+                            entry.name == "backup.json" -> {
+                                val buf = java.io.ByteArrayOutputStream()
+                                totalBytes += zip.copyLimited(buf, MAX_JSON_BYTES)
+                                payload = json.decodeFromString(BackupPayload.serializer(), buf.toString(Charsets.UTF_8.name()))
+                            }
                             entry.name.startsWith("photos/") -> {
                                 // Only the file's own name is used, never the path inside the zip, and the
                                 // result must stay inside the photos folder (a crafted "../" entry could
@@ -73,8 +98,9 @@ class BackupManager(
                                 val dest = File(photosDir, name)
                                 if (name.isNotBlank() && dest.canonicalFile.parentFile == photosRoot) {
                                     val existed = dest.exists()
-                                    dest.outputStream().use { zip.copyTo(it) }
                                     if (!existed) addedPhotos += dest
+                                    dest.outputStream().use { totalBytes += zip.copyLimited(it, MAX_PHOTO_BYTES) }
+                                    if (totalBytes > MAX_TOTAL_BYTES) error("Backup is too large or corrupt")
                                 }
                             }
                         }
