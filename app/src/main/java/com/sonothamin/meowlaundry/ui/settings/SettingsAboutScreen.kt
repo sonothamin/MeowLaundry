@@ -1,5 +1,7 @@
 package com.sonothamin.meowlaundry.ui.settings
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
+import com.sonothamin.meowlaundry.ui.adaptive.BackNavigationIcon
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -81,16 +83,14 @@ fun SettingsAboutScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("About") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    BackNavigationIcon(onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
             )
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = Spacing.md),
+            modifier = Modifier.fillMaxSize().padding(padding).contentMaxWidth().padding(horizontal = Spacing.md),
             contentPadding = PaddingValues(bottom = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {

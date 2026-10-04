@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.ui.articleview
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -119,6 +120,7 @@ fun ArticleViewScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .contentMaxWidth()
                 .pageSwipe(navState, onSwipeToItem),
         ) {
             item { PhotoCarousel(pagePaths, pagerState, item.title, onOpen = { viewerStartPage = it }) }

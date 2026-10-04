@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.ui.onboarding
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -96,7 +97,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
 
     Scaffold { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding).contentMaxWidth(560.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {

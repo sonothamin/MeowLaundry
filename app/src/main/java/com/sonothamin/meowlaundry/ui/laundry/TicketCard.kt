@@ -66,6 +66,8 @@ fun TicketCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The ticket currently open in a list-detail pane. */
+    highlighted: Boolean = false,
 ) {
     val ticket = overview.ticket
     val scheme = MaterialTheme.colorScheme
@@ -76,6 +78,7 @@ fun TicketCard(
     val container by animateColorAsState(
         targetValue = when {
             selected -> scheme.primaryContainer
+            highlighted -> scheme.secondaryContainer
             closed -> scheme.surfaceContainerLow
             else -> scheme.surfaceContainerHigh
         },
@@ -85,7 +88,11 @@ fun TicketCard(
     // primaryContainer, which needs onPrimaryContainer for real contrast - onSurfaceVariant
     // (tuned for the neutral surface tones) reads as faint gray-on-gray there.
     val onContainer by animateColorAsState(
-        targetValue = if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant,
+        targetValue = when {
+            selected -> scheme.onPrimaryContainer
+            highlighted -> scheme.onSecondaryContainer
+            else -> scheme.onSurfaceVariant
+        },
         label = "ticket-card-oncontainer",
     )
     val (badgeBg, badgeFg) = when {
@@ -103,7 +110,11 @@ fun TicketCard(
         shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = container,
-            contentColor = if (selected) scheme.onPrimaryContainer else scheme.onSurface,
+            contentColor = when {
+                selected -> scheme.onPrimaryContainer
+                highlighted -> scheme.onSecondaryContainer
+                else -> scheme.onSurface
+            },
         ),
     ) {
         Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {

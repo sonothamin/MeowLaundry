@@ -16,6 +16,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import com.sonothamin.meowlaundry.ui.adaptive.CenteredContent
+import com.sonothamin.meowlaundry.ui.adaptive.ContentWidth
+import com.sonothamin.meowlaundry.ui.adaptive.isTwoPane
+import com.sonothamin.meowlaundry.ui.adaptive.rememberWidthClass
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -99,12 +106,19 @@ fun StatsScreen(
         }
         val stats = data.stats
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        val columns = if (rememberWidthClass().isTwoPane) 2 else 1
+        CenteredContent(
+            modifier = Modifier.padding(padding),
+            maxWidth = if (columns == 2) 1100.dp else ContentWidth.List,
         ) {
-            item {
+        LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Fixed(columns),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(Spacing.md),
+            verticalItemSpacing = Spacing.md,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            item(span = StaggeredGridItemSpan.FullLine) {
                 val periods = StatsPeriod.values()
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     periods.forEachIndexed { index, option ->
@@ -118,13 +132,13 @@ fun StatsScreen(
                 }
             }
 
-            item { Headline(stats) }
+            item(span = StaggeredGridItemSpan.FullLine) { Headline(stats) }
 
             if (stats.lostValues.isNotEmpty()) {
-                item { LostCard(stats.lostValues) }
+                item(span = StaggeredGridItemSpan.FullLine) { LostCard(stats.lostValues) }
             }
 
-            item {
+            item(span = StaggeredGridItemSpan.FullLine) {
                 StatCard(icon = Icons.Default.Insights, title = "Laundry trips", subtitle = "Last 6 months") {
                     TripsChart(stats.perMonth)
                 }
@@ -230,7 +244,7 @@ fun StatsScreen(
             }
 
             if (stats.services.isNotEmpty()) {
-                item {
+                item(span = StaggeredGridItemSpan.FullLine) {
                     StatCard(icon = Icons.Default.LocalLaundryService, title = "By service") {
                         Row(
                             modifier = Modifier.horizontalScroll(rememberScrollState()),
@@ -261,7 +275,9 @@ fun StatsScreen(
                     }
                 }
             }
+                }
         }
+
     }
 }
 

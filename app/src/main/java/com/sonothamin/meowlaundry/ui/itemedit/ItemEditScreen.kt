@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.ui.itemedit
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -181,6 +182,7 @@ fun ItemEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .contentMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),

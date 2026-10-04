@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.ui.laundry
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -139,6 +140,7 @@ fun EditTicketScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .contentMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),

@@ -267,6 +267,8 @@ fun ClothingCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    /** The item currently open in a list-detail pane: tinted like a selection, but without the checkmark. */
+    highlighted: Boolean = false,
     onSelectToggle: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     /** Optional content under the title, e.g. the quantity stepper on the send-to-laundry screen. */
@@ -281,7 +283,7 @@ fun ClothingCard(
             ),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
+            containerColor = if (selected || highlighted) MaterialTheme.colorScheme.secondaryContainer
             else MaterialTheme.colorScheme.surfaceContainer,
         ),
     ) {
@@ -358,6 +360,8 @@ fun ClothingListRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    /** The item currently open in a list-detail pane: tinted like a selection, but without the checkmark. */
+    highlighted: Boolean = false,
     onSelectToggle: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -370,7 +374,7 @@ fun ClothingListRow(
             ),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
+            containerColor = if (selected || highlighted) MaterialTheme.colorScheme.secondaryContainer
             else MaterialTheme.colorScheme.surfaceContainer,
         ),
     ) {

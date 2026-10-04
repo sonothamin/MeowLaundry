@@ -3,7 +3,28 @@ package com.sonothamin.meowlaundry.ui.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.PermanentDrawerSheet
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.unit.dp
+import com.sonothamin.meowlaundry.ui.adaptive.DetailPlaceholder
+import com.sonothamin.meowlaundry.ui.adaptive.ListDetailPane
+import com.sonothamin.meowlaundry.ui.adaptive.WidthClass
+import com.sonothamin.meowlaundry.ui.adaptive.hasPersistentNav
+import com.sonothamin.meowlaundry.ui.adaptive.isTwoPane
+import com.sonothamin.meowlaundry.ui.adaptive.rememberWidthClass
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -79,6 +100,19 @@ private const val KEY_ORDER_CREATED = "laundry_order_created"
 private const val KEY_FLASH_MESSAGE = "flash_message"
 private const val KEY_FLASH_UNDO_TICKET = "flash_undo_ticket_id"
 
+/** Laundry tab: the ticket open in the detail pane (wide windows only). Cleared by screens that delete it. */
+private const val KEY_OPEN_TICKET = "laundry_open_ticket_id"
+
+/** Settings categories, in the order SettingsScreen lists them (used to pick one in the detail pane). */
+private val settingsPageRoutes = listOf(
+    Destination.SettingsPrint.route,
+    Destination.SettingsReminders.route,
+    Destination.SettingsAppearance.route,
+    Destination.SettingsCurrency.route,
+    Destination.SettingsBackup.route,
+    Destination.SettingsAbout.route,
+)
+
 private const val FADE_IN_MS = 320
 private const val FADE_OUT_MS = 200
 
@@ -130,32 +164,28 @@ fun MeowLaundryNavHost(
     val isTopLevelRoute = tabs.any { it.destination.route == currentRoute }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = isTopLevelRoute,
-        drawerContent = {
-            ModalDrawerSheet {
-                NavDrawerContent(
-                    currentRoute = currentRoute,
-                    onSelect = { tab ->
-                        scope.launch { drawerState.close() }
-                        // Always land on the tab's main screen, never on whatever sub-page was last
-                        // open inside it. Closet is the root of the back stack once onboarding is
-                        // done, so pop everything above it, then open the tab fresh.
-                        navController.navigate(tab.destination.route) {
-                            popUpTo(Destination.Closet.route) { saveState = false }
-                            launchSingleTop = true
-                            restoreState = false
-                        }
-                    },
-                )
-            }
-        },
-    ) {
-        // Which way the last article swipe went (true = next), so the incoming article can slide in
-        // from the matching side. Article -> article is the only transition that uses it.
-        var articleSwipeForward by remember { mutableStateOf(true) }
+    // Phones get the modal drawer. From medium widths up, navigation is persistent: a rail up to
+    // 1199dp and a full permanent drawer beyond, both only on a tab's root screen (pushed screens
+    // such as editors keep the whole window for the task, like on a phone).
+    val widthClass = rememberWidthClass()
+    val persistentNav = widthClass.hasPersistentNav
+    val openMenu: (() -> Unit)? = if (persistentNav) null else ({ scope.launch { drawerState.open() } })
+    val navigateToTab: (TopLevelTab) -> Unit = { tab ->
+        // Always land on the tab's main screen, never on whatever sub-page was last
+        // open inside it. Closet is the root of the back stack once onboarding is
+        // done, so pop everything above it, then open the tab fresh.
+        navController.navigate(tab.destination.route) {
+            popUpTo(Destination.Closet.route) { saveState = false }
+            launchSingleTop = true
+            restoreState = false
+        }
+    }
 
+    // Which way the last article swipe went (true = next), so the incoming article can slide in
+    // from the matching side. Article -> article is the only transition that uses it.
+    var articleSwipeForward by remember { mutableStateOf(true) }
+
+    val navContent: @Composable () -> Unit = {
         NavHost(
             navController = navController,
             startDestination = startDestination,
@@ -194,10 +224,21 @@ fun MeowLaundryNavHost(
                         entry.savedStateHandle[KEY_ORDER_CREATED] = false
                     }
                 }
+                // Wide windows: the garment opens beside the grid instead of replacing it.
+                val twoPane = rememberWidthClass().isTwoPane
+                var openItemId by rememberSaveable { mutableStateOf<Long?>(null) }
+                val closetList: @Composable () -> Unit = {
                 ClosetScreen(
                     viewModel = vm,
+                    openItemId = if (twoPane) openItemId else null,
                     onAddItem = { navController.navigate(Destination.ItemEditNew.route) },
-                    onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
+                    onOpenItem = { id ->
+                        if (twoPane) {
+                            openItemId = id
+                        } else {
+                            navController.navigate(Destination.ArticleView.route(id))
+                        }
+                    },
                     onSendSelectedToLaundry = { ids -> navController.navigate(Destination.SendToLaundry.route(ids)) },
                     // "At laundry" and "Lost" tiles jump to the tab that actually shows that stuff,
                     // the same way picking it from the drawer would (fresh screen, not a stacked page).
@@ -216,8 +257,46 @@ fun MeowLaundryNavHost(
                             restoreState = false
                         }
                     },
-                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onMenuClick = openMenu,
                 )
+                }
+                if (twoPane) {
+                    ListDetailPane(
+                        listPaneWidth = 420.dp,
+                        list = closetList,
+                        detail = {
+                            val id = openItemId
+                            if (id == null) {
+                                DetailPlaceholder(
+                                    icon = Icons.Default.Checkroom,
+                                    title = "Select a garment",
+                                    subtitle = "Its photos, laundry history and details show up here.",
+                                )
+                            } else {
+                                key(id) {
+                                    val articleVm: ArticleViewModel = viewModel(
+                                        key = "closet-pane-article-$id",
+                                        factory = LambdaViewModelFactory { ArticleViewModel(app.repository, id) },
+                                    )
+                                    ArticleViewScreen(
+                                        viewModel = articleVm,
+                                        onBack = { openItemId = null },
+                                        onEdit = { itemId -> navController.navigate(Destination.ItemEdit.route(itemId)) },
+                                        onSendToLaundry = { itemId ->
+                                            navController.navigate(Destination.SendToLaundry.route(listOf(itemId)))
+                                        },
+                                        onOpenTicket = { ticketId ->
+                                            navController.navigate(Destination.TicketDetail.route(ticketId))
+                                        },
+                                        onSwipeToItem = { next, _ -> openItemId = next },
+                                    )
+                                }
+                            }
+                        },
+                    )
+                } else {
+                    closetList()
+                }
             }
 
             composable(
@@ -292,18 +371,70 @@ fun MeowLaundryNavHost(
                 val undoTicketId by entry.savedStateHandle
                     .getStateFlow<Long?>(KEY_FLASH_UNDO_TICKET, null)
                     .collectAsStateWithLifecycle()
-                LaundryScreen(
-                    flashMessage = flash,
-                    flashUndoTicketId = undoTicketId,
-                    onFlashShown = {
-                        entry.savedStateHandle[KEY_FLASH_MESSAGE] = null
-                        entry.savedStateHandle[KEY_FLASH_UNDO_TICKET] = null
-                    },
-                    viewModel = vm,
-                    onSendNew = { navController.navigate(Destination.SendToLaundry.route()) },
-                    onOpenTicket = { id -> navController.navigate(Destination.TicketDetail.route(id)) },
-                    onMenuClick = { scope.launch { drawerState.open() } },
-                )
+                // Wide windows: the ticket opens beside the list instead of replacing it. The open
+                // ticket lives in the back stack entry so other screens (edit/delete) can clear it.
+                val twoPane = rememberWidthClass().isTwoPane
+                val openTicket by entry.savedStateHandle
+                    .getStateFlow<Long?>(KEY_OPEN_TICKET, null)
+                    .collectAsStateWithLifecycle()
+                val laundryList: @Composable () -> Unit = {
+                    LaundryScreen(
+                        flashMessage = flash,
+                        flashUndoTicketId = undoTicketId,
+                        onFlashShown = {
+                            entry.savedStateHandle[KEY_FLASH_MESSAGE] = null
+                            entry.savedStateHandle[KEY_FLASH_UNDO_TICKET] = null
+                        },
+                        viewModel = vm,
+                        onSendNew = { navController.navigate(Destination.SendToLaundry.route()) },
+                        onOpenTicket = { id ->
+                            if (twoPane) {
+                                entry.savedStateHandle[KEY_OPEN_TICKET] = id
+                            } else {
+                                navController.navigate(Destination.TicketDetail.route(id))
+                            }
+                        },
+                        onMenuClick = openMenu,
+                        openTicketId = if (twoPane) openTicket else null,
+                    )
+                }
+                if (twoPane) {
+                    ListDetailPane(
+                        listPaneWidth = 440.dp,
+                        list = laundryList,
+                        detail = {
+                            val id = openTicket
+                            if (id == null) {
+                                DetailPlaceholder(
+                                    icon = Icons.Default.LocalLaundryService,
+                                    title = "Select a ticket",
+                                    subtitle = "Check items back in, print the label or change the due date here.",
+                                )
+                            } else {
+                                key(id) {
+                                    val ticketVm: TicketDetailViewModel = viewModel(
+                                        key = "laundry-pane-ticket-$id",
+                                        factory = LambdaViewModelFactory {
+                                            TicketDetailViewModel(app.repository, app.printDispatcher, id)
+                                        },
+                                    )
+                                    TicketDetailScreen(
+                                        viewModel = ticketVm,
+                                        onBack = { entry.savedStateHandle[KEY_OPEN_TICKET] = null },
+                                        onEdit = { ticketId -> navController.navigate(Destination.EditTicket.route(ticketId)) },
+                                        onClosed = {
+                                            entry.savedStateHandle[KEY_FLASH_UNDO_TICKET] = id
+                                            entry.savedStateHandle[KEY_FLASH_MESSAGE] = "Ticket #$id closed"
+                                            entry.savedStateHandle[KEY_OPEN_TICKET] = null
+                                        },
+                                    )
+                                }
+                            }
+                        },
+                    )
+                } else {
+                    laundryList()
+                }
             }
 
             composable(
@@ -376,7 +507,10 @@ fun MeowLaundryNavHost(
                         if (!navController.popBackStack(Destination.TicketDetail.route, inclusive = true)) {
                             navController.popBackStack()
                         }
-                        navController.currentBackStackEntry?.savedStateHandle?.set(KEY_FLASH_MESSAGE, "Ticket #$ticketId deleted")
+                        navController.currentBackStackEntry?.savedStateHandle?.let {
+                            it[KEY_OPEN_TICKET] = null // the pane would otherwise keep showing the deleted ticket
+                            it[KEY_FLASH_MESSAGE] = "Ticket #$ticketId deleted"
+                        }
                     },
                 )
             }
@@ -393,7 +527,7 @@ fun MeowLaundryNavHost(
                 ArchiveScreen(
                     viewModel = vm,
                     onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
-                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onMenuClick = openMenu,
                 )
             }
 
@@ -404,7 +538,7 @@ fun MeowLaundryNavHost(
                 StatsScreen(
                     viewModel = vm,
                     onOpenItem = { id -> navController.navigate(Destination.ArticleView.route(id)) },
-                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onMenuClick = openMenu,
                 )
             }
 
@@ -414,16 +548,47 @@ fun MeowLaundryNavHost(
                         SettingsViewModel(app.printPreferences, app.backupManager, app.appPreferences, app.applicationContext)
                     },
                 )
-                SettingsScreen(
-                    viewModel = vm,
-                    onOpenPrint = { navController.navigate(Destination.SettingsPrint.route) },
-                    onOpenReminders = { navController.navigate(Destination.SettingsReminders.route) },
-                    onOpenAppearance = { navController.navigate(Destination.SettingsAppearance.route) },
-                    onOpenCurrency = { navController.navigate(Destination.SettingsCurrency.route) },
-                    onOpenBackup = { navController.navigate(Destination.SettingsBackup.route) },
-                    onOpenAbout = { navController.navigate(Destination.SettingsAbout.route) },
-                    onMenuClick = { scope.launch { drawerState.open() } },
-                )
+                // Wide windows: categories on the left, the chosen category's page on the right.
+                val twoPane = rememberWidthClass().isTwoPane
+                var page by rememberSaveable { mutableStateOf(settingsPageRoutes.first()) }
+                val openPage: (String) -> Unit = { route ->
+                    if (twoPane) {
+                        page = route
+                    } else {
+                        navController.navigate(route)
+                    }
+                }
+                val settingsList: @Composable () -> Unit = {
+                    SettingsScreen(
+                        viewModel = vm,
+                        onOpenPrint = { openPage(Destination.SettingsPrint.route) },
+                        onOpenReminders = { openPage(Destination.SettingsReminders.route) },
+                        onOpenAppearance = { openPage(Destination.SettingsAppearance.route) },
+                        onOpenCurrency = { openPage(Destination.SettingsCurrency.route) },
+                        onOpenBackup = { openPage(Destination.SettingsBackup.route) },
+                        onOpenAbout = { openPage(Destination.SettingsAbout.route) },
+                        onMenuClick = openMenu,
+                        selectedIndex = if (twoPane) settingsPageRoutes.indexOf(page).takeIf { it >= 0 } else null,
+                    )
+                }
+                if (twoPane) {
+                    ListDetailPane(
+                        listPaneWidth = 380.dp,
+                        list = settingsList,
+                        detail = {
+                            when (page) {
+                                Destination.SettingsReminders.route -> SettingsRemindersScreen(viewModel = vm, onBack = {})
+                                Destination.SettingsAppearance.route -> SettingsAppearanceScreen(viewModel = vm, onBack = {})
+                                Destination.SettingsCurrency.route -> SettingsCurrencyScreen(viewModel = vm, onBack = {})
+                                Destination.SettingsBackup.route -> SettingsBackupScreen(viewModel = vm, onBack = {})
+                                Destination.SettingsAbout.route -> SettingsAboutScreen(onBack = {})
+                                else -> SettingsPrintScreen(viewModel = vm, onBack = {})
+                            }
+                        },
+                    )
+                } else {
+                    settingsList()
+                }
             }
 
             composable(Destination.SettingsPrint.route) {
@@ -475,6 +640,60 @@ fun MeowLaundryNavHost(
                 SettingsAboutScreen(onBack = { navController.popBackStack() })
             }
         }
+    }
+
+    if (persistentNav) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            AnimatedVisibility(
+                visible = isTopLevelRoute,
+                enter = expandHorizontally(),
+                exit = shrinkHorizontally(),
+            ) {
+                if (widthClass == WidthClass.Large) {
+                    PermanentDrawerSheet(modifier = Modifier.width(280.dp)) {
+                        NavDrawerContent(currentRoute = currentRoute, onSelect = navigateToTab)
+                    }
+                } else {
+                    NavRailContent(currentRoute = currentRoute, onSelect = navigateToTab)
+                }
+            }
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) { navContent() }
+        }
+    } else {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = isTopLevelRoute,
+            drawerContent = {
+                ModalDrawerSheet {
+                    NavDrawerContent(
+                        currentRoute = currentRoute,
+                        onSelect = { tab ->
+                            scope.launch { drawerState.close() }
+                            navigateToTab(tab)
+                        },
+                    )
+                }
+            },
+            content = navContent,
+        )
+    }
+}
+
+@Composable
+private fun NavRailContent(currentRoute: String?, onSelect: (TopLevelTab) -> Unit) {
+    NavigationRail {
+        // Items sit in the vertical middle of the rail, within thumb reach on a tablet held in landscape.
+        Spacer(modifier = Modifier.weight(1f))
+        tabs.forEach { tab ->
+            NavigationRailItem(
+                selected = currentRoute == tab.destination.route,
+                onClick = { onSelect(tab) },
+                icon = { Icon(tab.icon, contentDescription = null) },
+                label = { Text(tab.label) },
+                alwaysShowLabel = true,
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
 

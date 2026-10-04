@@ -1,5 +1,7 @@
 package com.sonothamin.meowlaundry.ui.laundry
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
+import com.sonothamin.meowlaundry.ui.adaptive.ContentWidth
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -88,6 +90,8 @@ fun LaundryScreen(
     onFlashShown: () -> Unit = {},
     /** Opens the nav drawer. Null hides the hamburger icon. */
     onMenuClick: (() -> Unit)? = null,
+    /** The ticket open in the detail pane of a list-detail layout, tinted in the list. */
+    openTicketId: Long? = null,
 ) {
     val tickets by viewModel.tickets.collectAsStateWithLifecycle()
     val paged by viewModel.paged.collectAsStateWithLifecycle()
@@ -212,7 +216,7 @@ fun LaundryScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).contentMaxWidth(ContentWidth.List)) {
             if (!selectionMode) {
                 TicketFilterRow(selected = ticketFilter, onSelect = viewModel::setTicketFilter)
             }
@@ -241,6 +245,7 @@ fun LaundryScreen(
                         TicketCard(
                             overview = overview,
                             selected = overview.ticket.id in selectedIds,
+                            highlighted = overview.ticket.id == openTicketId,
                             onClick = {
                                 if (selectionMode) viewModel.toggleSelection(overview.ticket.id) else onOpenTicket(overview.ticket.id)
                             },

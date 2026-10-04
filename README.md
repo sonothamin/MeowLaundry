@@ -41,6 +41,20 @@ Settings -> Backup first if the data matters).
 | UI font choice in Settings (Inter, Google Sans, Ndot, NType, Samsung Sans, system) | ✅ |
 | 100% offline / on-device (SQLite via Room) | ✅ |
 
+## Adaptive layouts
+
+The UI adapts to the window, not just the device (Material 3 window width classes):
+
+| Width | Navigation | Closet / Laundry / Settings |
+|---|---|---|
+| Compact (< 600dp) | Modal drawer | One pane |
+| Medium (600-839dp) | Navigation rail | One pane, content capped to a readable width |
+| Expanded (840-1199dp) | Navigation rail | List + detail side by side |
+| Large (1200dp+) | Permanent drawer | List + detail side by side |
+
+Stats switches to a two-column card layout on wide windows, and forms and detail screens
+keep a readable maximum width instead of stretching edge to edge.
+
 ## Tech stack
 
 - Kotlin + Jetpack Compose, Material 3 (Expressive)
