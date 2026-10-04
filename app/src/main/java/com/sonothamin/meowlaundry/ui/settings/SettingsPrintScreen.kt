@@ -1,5 +1,7 @@
 package com.sonothamin.meowlaundry.ui.settings
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
+import com.sonothamin.meowlaundry.ui.adaptive.BackNavigationIcon
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -133,9 +135,7 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Print & label") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    BackNavigationIcon(onBack)
                 },
             )
         },
@@ -145,6 +145,7 @@ fun SettingsPrintScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .contentMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),

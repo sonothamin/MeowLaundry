@@ -1,5 +1,6 @@
 package com.sonothamin.meowlaundry.ui.articleview
 
+import com.sonothamin.meowlaundry.ui.adaptive.BackNavigationIcon
 import android.text.format.DateUtils
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -113,7 +114,7 @@ internal fun ArticleAppBar(
     TopAppBar(
         title = {},
         navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+            BackNavigationIcon(onBack)
         },
         actions = {
             if (item != null) {

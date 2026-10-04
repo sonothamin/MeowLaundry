@@ -1,5 +1,7 @@
 package com.sonothamin.meowlaundry.ui.settings
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
+import com.sonothamin.meowlaundry.ui.adaptive.BackNavigationIcon
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -63,15 +65,13 @@ fun SettingsRemindersScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Reminders") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    BackNavigationIcon(onBack)
                 },
             )
         },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(Spacing.md),
+            modifier = Modifier.fillMaxSize().padding(padding).contentMaxWidth().padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

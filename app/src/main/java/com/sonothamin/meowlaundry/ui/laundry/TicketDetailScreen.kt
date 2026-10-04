@@ -1,5 +1,7 @@
 package com.sonothamin.meowlaundry.ui.laundry
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
+import com.sonothamin.meowlaundry.ui.adaptive.BackNavigationIcon
 import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -182,7 +184,7 @@ fun TicketDetailScreen(
             TopAppBar(
                 title = { Text(if (ticket != null) "Ticket #${ticket.id}" else "Ticket") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    BackNavigationIcon(onBack)
                 },
                 actions = {
                     if (ticket != null) {
@@ -214,7 +216,7 @@ fun TicketDetailScreen(
         val lostCount = state.lostUnits
         val accounted = returnedCount + lostCount
 
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).contentMaxWidth()) {
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.sm),

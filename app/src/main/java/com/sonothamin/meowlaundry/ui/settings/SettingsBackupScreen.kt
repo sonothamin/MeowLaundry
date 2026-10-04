@@ -1,5 +1,7 @@
 package com.sonothamin.meowlaundry.ui.settings
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
+import com.sonothamin.meowlaundry.ui.adaptive.BackNavigationIcon
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -75,9 +77,7 @@ fun SettingsBackupScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Backup & restore") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    BackNavigationIcon(onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
             )
@@ -85,7 +85,7 @@ fun SettingsBackupScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(Spacing.md),
+            modifier = Modifier.fillMaxSize().padding(padding).contentMaxWidth().padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Text(

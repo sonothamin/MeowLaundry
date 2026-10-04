@@ -1,5 +1,7 @@
 package com.sonothamin.meowlaundry.ui.settings
 
+import com.sonothamin.meowlaundry.ui.adaptive.contentMaxWidth
+import com.sonothamin.meowlaundry.ui.adaptive.ContentWidth
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +29,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,6 +67,8 @@ fun SettingsScreen(
     onOpenAbout: () -> Unit,
     /** Opens the nav drawer. Null hides the hamburger icon. */
     onMenuClick: (() -> Unit)? = null,
+    /** Index of the category shown in the detail pane of a list-detail layout; null on a phone. */
+    selectedIndex: Int? = null,
 ) {
     val printSettings by viewModel.printSettings.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
@@ -129,10 +136,11 @@ fun SettingsScreen(
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding).contentMaxWidth(ContentWidth.List),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            items(entries) { entry ->
+            itemsIndexed(entries) { index, entry ->
+                val isOpen = selectedIndex != null && index == selectedIndex
                 ListItem(
                     headlineContent = { Text(entry.title) },
                     supportingContent = { Text(entry.subtitle) },
@@ -144,9 +152,13 @@ fun SettingsScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+                    colors = ListItemDefaults.colors(
+                        containerColor = if (isOpen) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = if (selectedIndex != null) 8.dp else 0.dp)
+                        .clip(if (selectedIndex != null) MaterialTheme.shapes.extraLarge else RectangleShape)
                         .clickable(onClick = entry.onClick),
                 )
             }

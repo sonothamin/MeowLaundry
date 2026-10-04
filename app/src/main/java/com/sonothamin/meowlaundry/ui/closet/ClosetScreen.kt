@@ -120,6 +120,8 @@ fun ClosetScreen(
     onOpenLostArchive: () -> Unit,
     /** Opens the nav drawer. Null hides the hamburger icon (e.g. when embedded without a drawer). */
     onMenuClick: (() -> Unit)? = null,
+    /** The garment open in the detail pane of a list-detail layout, tinted in the grid/list. */
+    openItemId: Long? = null,
 ) {
     val paged by viewModel.paged.collectAsStateWithLifecycle()
     val items = paged.items
@@ -320,6 +322,7 @@ fun ClosetScreen(
                             item = item,
                             onClick = { if (selectionMode) viewModel.toggleSelection(item.id) else onOpenItem(item.id) },
                             selected = item.id in selectedIds,
+                            highlighted = item.id == openItemId,
                             onSelectToggle = if (selectionMode) ({ viewModel.toggleSelection(item.id) }) else null,
                             onLongClick = { viewModel.startSelection(item.id) },
                         )
@@ -339,6 +342,7 @@ fun ClosetScreen(
                             item = item,
                             onClick = { if (selectionMode) viewModel.toggleSelection(item.id) else onOpenItem(item.id) },
                             selected = item.id in selectedIds,
+                            highlighted = item.id == openItemId,
                             onSelectToggle = if (selectionMode) ({ viewModel.toggleSelection(item.id) }) else null,
                             onLongClick = { viewModel.startSelection(item.id) },
                         )
